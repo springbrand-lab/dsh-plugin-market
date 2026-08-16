@@ -1,0 +1,3 @@
+- insert:
+    - id: springbrand-plugin-marketplace
+      name: '@springbrand/dsh-plugin-marketplace'
