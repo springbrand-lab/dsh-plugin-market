@@ -5,7 +5,7 @@ describe('plugin catalog', () => {
   it('keeps real DSH entities but only enables audited npm bundles', () => {
     const plugins = parseCatalog({ plugins: [
       {
-        name: 'Bundle', owner: 'springbrand', url: 'https://example.com/bundle', page: 'https://example.com/plugins/bundle',
+        name: 'Bundle', owner: 'springbrand', url: 'https://github.com/springbrand/bundle', page: 'https://example.com/plugins/bundle',
         description: 'Ready', entity_type: 'bundle', npm: '@springbrand/bundle', stars: 12_345,
         install_method: 'npm', installability: 'installable', runs_install_scripts: false,
       },
@@ -24,7 +24,12 @@ describe('plugin catalog', () => {
     ] })
 
     expect(plugins.map(plugin => plugin.name)).toEqual(['Bundle', 'Skill'])
-    expect(plugins[0]).toMatchObject({ id: 'bundle', packageName: '@springbrand/bundle', installable: true })
+    expect(plugins[0]).toMatchObject({
+      id: 'bundle',
+      icon: 'https://github.com/springbrand.png?size=96',
+      packageName: '@springbrand/bundle',
+      installable: true,
+    })
     expect(plugins[1]?.installable).toBe(false)
   })
 

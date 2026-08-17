@@ -1,6 +1,6 @@
 {
   "name": "@springbrand/dsh-plugin-marketplace",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A visual plugin marketplace for DeepSeek Harness profiles.",
   "type": "module",
   "main": "lib/index.js",
@@ -42,11 +42,12 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["lib", "client", "cordis.patch.yml", "LICENSE", "README.md"],
+  "files": ["lib", "client", "assets", "cordis.patch.yml", "LICENSE", "README.md", "README.zh.md"],
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@types/node": "^24.3.0",
     "@types/react": "~18.3.1",
+    "lucide-react": "1.31.0",
     "react": "^18.3.1",
     "tsdown": "^0.15.4",
     "typescript": "^5.9.2",

@@ -1,44 +1,68 @@
+<p align="center">
+  <img src="assets/logo.png" width="128" alt="SpringBrand DSH Plugin Marketplace logo">
+</p>
+
 # @springbrand/dsh-plugin-marketplace
 
-DeepSeek Harness 的可视化插件市场。它把插件目录放进 Web 设置页，并通过 DSH 官方的 `dsh plugin` 指令完成安装、更新和卸载。
+English | [中文](README.zh.md)
 
-## 安装
+[![npm](https://img.shields.io/npm/v/%40springbrand%2Fdsh-plugin-marketplace)](https://www.npmjs.com/package/@springbrand/dsh-plugin-marketplace)
+[![CI](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml/badge.svg)](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml)
 
-```bash
+The visual plugin marketplace built into DeepSeek Harness Web settings. Open **Settings → Plugin Marketplace** to browse and search the catalog, then install, update, or remove plugins across profiles.
+
+![DeepSeek Harness Plugin Marketplace](assets/plugin-marketplace.png)
+
+## Install
+
+```sh
 dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+```
+
+Restart the Web profile:
+
+```sh
 dsh --profile web
 ```
 
-如果 Web 正在运行，安装后重启一次 DSH。之后可以在“设置 → 插件市场”中管理插件。
+Then open **Settings → Plugin Marketplace**.
 
-市场默认操作 `web` Profile，也可以在页面中切换到其他 Profile。对当前 Profile 的修改会自动重启 DSH；对其他 Profile 的修改会在该 Profile 下次启动时生效。
+## What you get
 
-## 卸载
+- **Browse and search** by name, author, description, or npm package, with visible plugin categories, repository avatars, and compact GitHub Star counts.
+- **Profile management** across `web`, `headless`, and other local profiles.
+- **Install, update, and remove in one place**, with the target profile and npm package shown before each operation.
+- **Installed view** covering both catalog entries and profile dependencies that are not listed in the catalog.
+- **Clear activation timing**: changes to the current profile restart DSH automatically; changes to other profiles apply on their next launch.
 
-可以直接在市场的“已安装”页面卸载，也可以运行：
+## Security
 
-```bash
-dsh plugin --profile web remove @springbrand/dsh-plugin-marketplace
-```
+- Installation is limited to catalog entries marked `bundle`, `installable`, and `npm`.
+- The server resolves the npm package name from the catalog again instead of accepting an arbitrary source from the browser.
+- Updates and removals accept only valid npm package names already installed in the selected profile.
+- Mutation endpoints accept same-origin JSON POST requests only, with an 8 KiB body limit.
+- DSH commands are launched with argument arrays, never through a shell, and only one plugin operation runs at a time.
 
-## 工作方式
+Plugins are third-party code. Catalog inclusion is not a security endorsement; install only sources you trust.
+
+## How it works
 
 ```text
-[Web 设置页]
+[Web settings]
       |
       v
-[本插件的本地 HTTP 接口]
+[Local HTTP API from this plugin]
       |
       +--> [dshplugin.market/plugins.json]
       |
       +--> dsh plugin --profile <profile> add|update|remove <package>
 ```
 
-浏览器不能提交任意脚本。安装按钮只对目录中标记为 `bundle`、`installable`、`npm` 的包开放，服务端会再次从目录解析 npm 包名后再调用 DSH。
+The marketplace targets the running profile by default, but you can select another profile in the UI. The first release uses process restarts and does not provide arbitrary plugin hot-mounting or seamless port handoff.
 
-## 配置
+## Configuration
 
-在 Profile 的 Cordis 配置中可以覆盖以下字段：
+Override these fields in the profile's Cordis configuration:
 
 ```yaml
 config:
@@ -47,17 +71,25 @@ config:
   restartDelayMs: 1500
 ```
 
-- `profile`：当前 DSH 进程使用的 Profile；默认从启动参数读取。
-- `catalogUrl`：插件目录 JSON 地址。
-- `restartDelayMs`：当前 Profile 变更后的重启等待时间。
+- `profile`: the profile used by the running DSH process; read from the launch arguments by default.
+- `catalogUrl`: the plugin catalog JSON URL; HTTP and HTTPS are supported.
+- `restartDelayMs`: delay before restarting the current profile, from 500 to 30000 milliseconds.
 
-第一版采用进程重启，不提供任意插件 Hot-mount 或无缝端口交接。
+## Uninstall
 
-## 开发
+Remove the package from the marketplace's Installed tab, or run:
 
-```bash
+```sh
+dsh plugin --profile web remove @springbrand/dsh-plugin-marketplace
+```
+
+## Development
+
+```sh
 npm install
 npm run check
 ```
 
-License: MIT
+## License
+
+MIT

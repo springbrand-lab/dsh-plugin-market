@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.mjs'
+import Package from 'lucide-react/dist/esm/icons/package.mjs'
+import Star from 'lucide-react/dist/esm/icons/star.mjs'
+import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs'
+import { formatStars } from '../catalog.ts'
 
 const API = '/springbrand-market'
 const OPERATION_KEY = 'springbrand-market:last-operation'
@@ -8,6 +13,7 @@ interface Plugin {
   id: string
   name: string
   owner: string
+  icon?: string
   url: string
   page?: string
   description: string
@@ -54,12 +60,6 @@ const ENTITY_LABELS: Record<string, string> = {
   'mcp-server': 'MCP 服务',
   'cordis-plugin': 'Cordis 插件',
   installed: '已安装',
-}
-
-function formatStars(stars: number): string {
-  if (stars < 1_000) return String(Math.round(stars))
-  const thousands = stars / 1_000
-  return `${thousands < 100 ? Number(thousands.toFixed(1)) : Math.round(thousands)}k`
 }
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
@@ -170,8 +170,10 @@ export function Marketplace() {
 
   const selected = profiles.find(profile => profile.name === selectedProfile)
   const installedNames = new Set(Object.keys(selected?.dependencies ?? {}))
-  const types = useMemo(() => [...new Set(catalog.map(plugin => plugin.entityType))], [catalog])
   const rows = installedOnly ? installedOnlyRows(selected, catalog) : catalog
+  const types = [...new Set(rows.map(plugin => plugin.entityType))]
+  const typeCounts = new Map<string, number>()
+  for (const plugin of rows) typeCounts.set(plugin.entityType, (typeCounts.get(plugin.entityType) ?? 0) + 1)
   const filtered = rows.filter((plugin) => {
     if (entity !== 'all' && plugin.entityType !== entity) return false
     const needle = query.trim().toLowerCase()
@@ -222,16 +224,19 @@ export function Marketplace() {
         </div>
         <label className="sb-profile">
           <span>目标 Profile</span>
-          <select value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value) }}>
-            {profiles.map(profile => <option key={profile.name}>{profile.name}</option>)}
-          </select>
+          <span className="sb-select-wrap">
+            <select aria-label="目标 Profile" value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value) }}>
+              {profiles.map(profile => <option key={profile.name}>{profile.name}</option>)}
+            </select>
+            <ChevronDown aria-hidden="true" />
+          </span>
         </label>
       </header>
 
       <div className="sb-toolbar">
         <div className="sb-tabs" role="tablist" aria-label="目录范围">
-          <button type="button" role="tab" aria-selected={!installedOnly} onClick={() => { setInstalledOnly(false) }}>发现</button>
-          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true) }}>已安装 ({Object.keys(selected?.dependencies ?? {}).length})</button>
+          <button type="button" role="tab" aria-selected={!installedOnly} onClick={() => { setInstalledOnly(false); setEntity('all') }}>发现</button>
+          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true); setEntity('all') }}>已安装 ({Object.keys(selected?.dependencies ?? {}).length})</button>
         </div>
         <input
           type="search"
@@ -240,11 +245,16 @@ export function Marketplace() {
           placeholder="搜索名称、作者或 npm 包"
           aria-label="搜索插件"
         />
-        <select value={entity} onChange={event => { setEntity(event.target.value) }} aria-label="插件类型">
-          <option value="all">全部类型</option>
-          {types.map(type => <option key={type} value={type}>{ENTITY_LABELS[type] ?? type}</option>)}
-        </select>
       </div>
+
+      <nav className="sb-categories" aria-label="插件分类">
+        <button type="button" aria-pressed={entity === 'all'} onClick={() => { setEntity('all') }}>全部 <span>{rows.length}</span></button>
+        {types.map(type => (
+          <button key={type} type="button" aria-pressed={entity === type} onClick={() => { setEntity(type) }}>
+            {ENTITY_LABELS[type] ?? type} <span>{typeCounts.get(type) ?? 0}</span>
+          </button>
+        ))}
+      </nav>
 
       {(status !== '' || error !== '') && (
         <div className={error === '' ? 'sb-notice' : 'sb-notice sb-error'} role="status">
@@ -259,18 +269,29 @@ export function Marketplace() {
           return (
             <article className="sb-card" key={plugin.id}>
               <div className="sb-card-title">
-                <div>
-                  <h3>{plugin.name}</h3>
-                  <p>{plugin.owner}{plugin.stars > 0 && <span className="sb-stars">★ {formatStars(plugin.stars)}</span>}</p>
+                <div className="sb-icon">
+                  {plugin.icon === undefined
+                    ? <Package aria-hidden="true" />
+                    : <>
+                        <span aria-hidden="true">{plugin.name.charAt(0).toUpperCase()}</span>
+                        <img src={plugin.icon} alt="" width="48" height="48" loading="lazy" decoding="async" onError={event => { event.currentTarget.hidden = true }} />
+                      </>}
                 </div>
-                <span className="sb-kind">{ENTITY_LABELS[plugin.entityType] ?? plugin.entityType}</span>
+                <div className="sb-heading">
+                  <h3>{plugin.name}</h3>
+                  <p>{plugin.owner}</p>
+                </div>
               </div>
               <p className="sb-description">{plugin.description}</p>
+              <div className="sb-card-meta">
+                <span className="sb-kind">{ENTITY_LABELS[plugin.entityType] ?? plugin.entityType}</span>
+                {plugin.runsInstallScripts && <span className="sb-warning" title="该包声明了安装脚本"><TriangleAlert aria-hidden="true" />安装脚本</span>}
+                <span className="sb-stars" aria-label={`${String(plugin.stars)} stars`}><Star aria-hidden="true" />{formatStars(plugin.stars)}</span>
+              </div>
               <footer>
                 <div className="sb-meta">
                   {plugin.packageName && <code>{plugin.packageName}</code>}
                   {plugin.language && <span>{plugin.language}</span>}
-                  {plugin.runsInstallScripts && <span title="该包声明了安装脚本">含安装脚本</span>}
                 </div>
                 <div className="sb-actions">
                   {plugin.url !== '' && <a href={plugin.page ?? plugin.url} target="_blank" rel="noreferrer">详情</a>}
@@ -320,7 +341,40 @@ export function Marketplace() {
 }
 
 const MARKET_STYLE = `
-.sb-market{box-sizing:border-box;height:min(720px,calc(100vh - 210px));min-height:500px;display:flex;flex-direction:column;gap:12px;color:inherit;overflow:hidden}
-.sb-market *{box-sizing:border-box}.sb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.sb-head h2{font-size:20px;margin:0 0 4px}.sb-head p{margin:0;opacity:.62;font-size:13px}.sb-profile{display:flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap}.sb-market select,.sb-market input,.sb-market button,.sb-market a{font:inherit}.sb-market select,.sb-market input{height:34px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:color-mix(in srgb,currentColor 5%,transparent);color:inherit;padding:0 10px}.sb-toolbar{display:grid;grid-template-columns:auto minmax(180px,1fr) auto;gap:10px;align-items:center}.sb-tabs{display:flex;gap:4px}.sb-tabs button,.sb-pager button,.sb-actions button,.sb-actions a,.sb-dialog-actions button{border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:transparent;color:inherit;padding:7px 11px;text-decoration:none;cursor:pointer}.sb-tabs button[aria-selected=true]{background:color-mix(in srgb,#5b8cff 24%,transparent);border-color:#5b8cff;color:inherit}.sb-notice{display:flex;justify-content:space-between;gap:12px;border:1px solid color-mix(in srgb,#4ea871 55%,transparent);background:color-mix(in srgb,#4ea871 12%,transparent);border-radius:8px;padding:8px 10px;font-size:13px}.sb-notice button{border:0;background:none;color:inherit;cursor:pointer}.sb-error{border-color:#d85d5d;background:color-mix(in srgb,#d85d5d 12%,transparent)}.sb-results{flex:1;min-height:0;overflow:auto;display:grid;align-content:start;gap:10px;padding-right:4px}.sb-card{border:1px solid color-mix(in srgb,currentColor 16%,transparent);border-radius:12px;padding:14px;background:color-mix(in srgb,currentColor 4%,transparent)}.sb-card-title{display:flex;justify-content:space-between;gap:12px}.sb-card h3{font-size:15px;margin:0 0 4px}.sb-card-title p{font-size:12px;margin:0;opacity:.7}.sb-stars{color:#f5b82e;margin-left:6px;font-weight:650}.sb-kind{font-size:11px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:999px;padding:3px 8px;white-space:nowrap;height:max-content}.sb-description{font-size:13px;line-height:1.5;opacity:.74;margin:10px 0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.sb-card footer{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.sb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:11px;opacity:.68}.sb-meta code,.sb-dialog code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.sb-actions{display:flex;align-items:center;gap:7px;white-space:nowrap}.sb-actions button,.sb-actions a{font-size:12px;padding:5px 9px}.sb-actions .sb-primary,.sb-dialog-actions .sb-primary{background:#4f7fe8;border-color:#4f7fe8;color:#fff}.sb-actions .sb-danger,.sb-dialog-actions .sb-danger{border-color:#cf6262;color:#ed8585}.sb-muted{font-size:12px;opacity:.45}.sb-empty{align-self:center;text-align:center;opacity:.55;padding:48px}.sb-pager{flex:none;min-height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;border-top:1px solid color-mix(in srgb,currentColor 14%,transparent);padding-top:10px;font-size:12px}.sb-pager>div{display:flex;align-items:center;gap:10px}.sb-pager>label{justify-self:end}.sb-pager button{padding:6px 10px}.sb-pager button:disabled{opacity:.35;cursor:not-allowed}.sb-pager select{height:30px;padding:0 6px}.sb-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.58);padding:20px}.sb-dialog{width:min(420px,100%);border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:14px;background:#29292c;color:#f2f2f3;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}.sb-dialog h3{margin:0 0 12px}.sb-dialog p{font-size:13px;opacity:.75}.sb-dialog>code{display:block;border-radius:8px;background:rgba(255,255,255,.07);padding:10px;overflow-wrap:anywhere}.sb-dialog .sb-restart-note{color:#f5b82e}.sb-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.sb-dialog-actions button:disabled{opacity:.55;cursor:wait}
-@media(max-width:700px){.sb-market{height:calc(100vh - 170px)}.sb-head{align-items:stretch;flex-direction:column}.sb-profile{justify-content:space-between}.sb-toolbar{grid-template-columns:1fr 1fr}.sb-tabs{grid-column:1/-1}.sb-toolbar input{grid-column:1/2;width:100%}.sb-card footer{align-items:stretch;flex-direction:column}.sb-actions{justify-content:flex-end}.sb-pager{grid-template-columns:1fr auto}.sb-pager>span{display:none}.sb-pager>label{justify-self:end}}
+.sb-market{box-sizing:border-box;height:100%;min-height:500px;display:flex;flex-direction:column;gap:12px;color:inherit;overflow:hidden}
+.sb-market *{box-sizing:border-box}
+.sb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.sb-head h2{font-size:20px;margin:0 0 4px}.sb-head p{margin:0;opacity:.62;font-size:13px}
+.sb-profile{display:flex;align-items:center;gap:9px;font-size:12px;white-space:nowrap}.sb-profile>span:first-child{opacity:.66}
+.sb-market select,.sb-market input,.sb-market button,.sb-market a{font:inherit}
+.sb-market select,.sb-market input{height:34px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:color-mix(in srgb,currentColor 5%,transparent);color:inherit;padding:0 10px}
+.sb-select-wrap{position:relative;display:block}.sb-profile select{width:108px;appearance:none;border-radius:9px;background:color-mix(in srgb,currentColor 7%,transparent);padding:0 32px 0 12px;cursor:pointer}.sb-profile select:hover{border-color:color-mix(in srgb,currentColor 30%,transparent);background:color-mix(in srgb,currentColor 10%,transparent)}.sb-profile select:focus-visible{outline:2px solid #5b8cff;outline-offset:2px;border-color:transparent}.sb-profile option{background:#2d2d30;color:#f2f2f3}.sb-select-wrap svg{position:absolute;right:10px;top:50%;width:14px;height:14px;transform:translateY(-50%);pointer-events:none;opacity:.62}
+.sb-toolbar{display:grid;grid-template-columns:auto minmax(180px,1fr);gap:10px;align-items:center}
+.sb-tabs{display:flex;gap:4px}
+.sb-tabs button,.sb-pager button,.sb-actions button,.sb-actions a,.sb-dialog-actions button{border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:transparent;color:inherit;padding:7px 11px;text-decoration:none;cursor:pointer}
+.sb-tabs button[aria-selected=true]{background:color-mix(in srgb,#5b8cff 24%,transparent);border-color:#5b8cff;color:inherit}
+.sb-categories{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:0 1px 2px;scrollbar-width:none}.sb-categories::-webkit-scrollbar{display:none}.sb-categories button{height:28px;flex:none;border:1px solid transparent;border-radius:999px;background:transparent;color:inherit;padding:0 10px;font-size:12px;opacity:.66;cursor:pointer}.sb-categories button:hover{opacity:1;background:color-mix(in srgb,currentColor 5%,transparent)}.sb-categories button[aria-pressed=true]{border-color:color-mix(in srgb,currentColor 24%,transparent);background:color-mix(in srgb,currentColor 8%,transparent);opacity:1}.sb-categories span{margin-left:3px;font-size:10px;opacity:.56;font-variant-numeric:tabular-nums}
+.sb-notice{display:flex;justify-content:space-between;gap:12px;border:1px solid color-mix(in srgb,#4ea871 55%,transparent);background:color-mix(in srgb,#4ea871 12%,transparent);border-radius:8px;padding:8px 10px;font-size:13px}
+.sb-notice button{border:0;background:none;color:inherit;cursor:pointer}.sb-error{border-color:#d85d5d;background:color-mix(in srgb,#d85d5d 12%,transparent)}
+.sb-results{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:12px;padding:2px 5px 4px 2px}
+.sb-card{min-height:208px;display:flex;flex-direction:column;border:1px solid color-mix(in srgb,currentColor 16%,transparent);border-radius:9px;padding:14px;background:color-mix(in srgb,currentColor 3%,transparent);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
+.sb-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,#5b8cff 42%,transparent);box-shadow:0 8px 22px color-mix(in srgb,#5b8cff 8%,transparent)}
+.sb-card-title{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.sb-icon{position:relative;width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:9px;background:color-mix(in srgb,currentColor 6%,transparent);font-size:17px;font-weight:700;opacity:.9}
+.sb-icon>svg{width:21px;height:21px;opacity:.58}.sb-icon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sb-heading{min-width:0;padding-top:2px}.sb-card h3{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;line-height:1.35;margin:0 0 4px}.sb-card-title p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin:0;opacity:.58}
+.sb-description{min-height:39px;font-size:13px;line-height:1.5;opacity:.7;margin:12px 0 10px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.sb-card-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:auto;min-height:23px}
+.sb-kind,.sb-warning{display:inline-flex;align-items:center;gap:4px;height:22px;border-radius:6px;padding:0 7px;white-space:nowrap;font-size:11px;font-weight:600}
+.sb-kind{background:color-mix(in srgb,#5b8cff 12%,transparent);color:color-mix(in srgb,#7fa3ff 85%,currentColor)}
+.sb-warning{background:color-mix(in srgb,#f5b82e 11%,transparent);color:#e8a91c}.sb-warning svg{width:13px;height:13px}
+.sb-stars{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:#f5b82e;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}.sb-stars svg{width:14px;height:14px;fill:currentColor}
+.sb-card footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid color-mix(in srgb,currentColor 10%,transparent)}
+.sb-meta{min-width:0;display:flex;align-items:center;gap:7px;font-size:11px;opacity:.58}.sb-meta code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px}
+.sb-meta code,.sb-dialog code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sb-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.sb-actions button,.sb-actions a{font-size:12px;padding:5px 9px}.sb-actions .sb-primary,.sb-dialog-actions .sb-primary{background:#4f7fe8;border-color:#4f7fe8;color:#fff}.sb-actions .sb-danger,.sb-dialog-actions .sb-danger{border-color:#cf6262;color:#ed8585}
+.sb-muted{font-size:12px;opacity:.45}.sb-empty{grid-column:1/-1;align-self:center;text-align:center;opacity:.55;padding:48px}
+.sb-pager{flex:none;min-height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;border-top:1px solid color-mix(in srgb,currentColor 14%,transparent);padding-top:10px;font-size:12px}.sb-pager>div{display:flex;align-items:center;gap:10px}.sb-pager>label{justify-self:end}.sb-pager button{padding:6px 10px}.sb-pager button:disabled{opacity:.35;cursor:not-allowed}.sb-pager select{height:30px;padding:0 6px}
+.sb-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.58);padding:20px}.sb-dialog{width:min(420px,100%);border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:14px;background:#29292c;color:#f2f2f3;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}.sb-dialog h3{margin:0 0 12px}.sb-dialog p{font-size:13px;opacity:.75}.sb-dialog>code{display:block;border-radius:8px;background:rgba(255,255,255,.07);padding:10px;overflow-wrap:anywhere}.sb-dialog .sb-restart-note{color:#f5b82e}.sb-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.sb-dialog-actions button:disabled{opacity:.55;cursor:wait}
+@media(max-width:700px){.sb-market{height:calc(100vh - 170px)}.sb-head{align-items:stretch;flex-direction:column}.sb-profile{justify-content:space-between}.sb-toolbar{grid-template-columns:1fr}.sb-tabs{grid-column:1/-1}.sb-toolbar input{width:100%}.sb-results{grid-template-columns:1fr}.sb-card{min-height:196px}.sb-card footer{align-items:stretch;flex-direction:column}.sb-actions{justify-content:flex-end}.sb-pager{grid-template-columns:1fr auto}.sb-pager>span{display:none}.sb-pager>label{justify-self:end}}
 `

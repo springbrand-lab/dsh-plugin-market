@@ -12,6 +12,7 @@ export interface CatalogEntry {
   id: string
   name: string
   owner: string
+  icon?: string
   url: string
   page?: string
   description: string
@@ -48,6 +49,13 @@ function httpUrl(value: unknown): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function githubAvatar(repositoryUrl: string): string | undefined {
+  const parsed = new URL(repositoryUrl)
+  if (parsed.hostname !== 'github.com') return undefined
+  const owner = parsed.pathname.split('/').filter(Boolean)[0]
+  return owner === undefined ? undefined : `https://github.com/${encodeURIComponent(owner)}.png?size=96`
 }
 
 /** Accept npm registry package names, never paths, URLs, aliases, or shell text. */
@@ -96,11 +104,13 @@ function normalize(rowValue: unknown): CatalogEntry | undefined {
   const page = httpUrl(row.page)
   const language = text(row.language)
   const license = text(row.license)
+  const icon = githubAvatar(url)
 
   return {
     id: entryId(row, owner, name),
     name,
     owner,
+    ...(icon === undefined ? {} : { icon }),
     url,
     ...(page === undefined ? {} : { page }),
     description: summary,
