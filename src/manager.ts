@@ -54,13 +54,13 @@ export function desktopManager(
     listProfiles: async () => [await readProfileState(current.name, current.dir)],
     runPlugin: async (profile, action, packageName, signal) => {
       if (profile !== current.name) {
-        throw new Error(`Desktop 只能修改当前 Profile：${current.name}`)
+        throw new Error(`Desktop can only modify its active profile: ${current.name}`)
       }
       const operation = pnpm.runPlugin(pluginArguments(action, packageName), current.dir, signal)
       const output = collectOutput([operation.stdout, operation.stderr])
       const outcome = await operation.done
       if (outcome.exitCode !== 0) {
-        throw new Error(output() || `dsh plugin 失败（${outcome.signal ?? String(outcome.exitCode)}）`)
+        throw new Error(output() || `dsh plugin failed (${outcome.signal ?? String(outcome.exitCode)})`)
       }
     },
     restart: () => profiles.restart(),

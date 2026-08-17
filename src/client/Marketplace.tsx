@@ -4,7 +4,7 @@ import Package from 'lucide-react/dist/esm/icons/package.mjs'
 import Star from 'lucide-react/dist/esm/icons/star.mjs'
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs'
 import { formatStars } from '../catalog.ts'
-import type { MarketplaceKey, MarketplaceTranslate } from './locales.ts'
+import { en, type MarketplaceKey, type MarketplaceTranslate } from './locales.ts'
 
 const API = '/springbrand-market'
 const OPERATION_KEY = 'springbrand-market:last-operation'
@@ -75,16 +75,33 @@ function entityLabel(t: MarketplaceTranslate, entity: string): string {
   return key === undefined ? entity : t(key)
 }
 
+/**
+ * Render a failure in the UI language. The host sends a locale key for every
+ * failure it raises; its `error` text is English for the DSH log and is only
+ * shown when an unexpected throw arrives with no key to translate.
+ */
+function failureText(
+  t: MarketplaceTranslate,
+  status: number,
+  value: { error?: unknown; code?: unknown; params?: unknown },
+): string {
+  if (typeof value.code === 'string' && Object.hasOwn(en, value.code)) {
+    const params = typeof value.params === 'object' && value.params !== null
+      ? value.params as Record<string, unknown>
+      : undefined
+    return t(value.code as MarketplaceKey, params)
+  }
+  return typeof value.error === 'string' ? value.error : t('requestFailed', { status })
+}
+
 async function json<T>(t: MarketplaceTranslate, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     ...init,
     headers: init?.body === undefined ? undefined : { 'content-type': 'application/json' },
     cache: 'no-store',
   })
-  const value = await response.json() as { error?: unknown }
-  if (!response.ok) throw new Error(typeof value.error === 'string'
-    ? value.error
-    : t('requestFailed', { status: response.status }))
+  const value = await response.json() as { error?: unknown; code?: unknown; params?: unknown }
+  if (!response.ok) throw new Error(failureText(t, response.status, value))
   return value as T
 }
 

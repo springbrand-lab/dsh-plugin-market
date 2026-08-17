@@ -17,7 +17,7 @@ export function dshHome(): string {
 export function assertProfileName(name: string): void {
   if (name === '' || name === '.' || name === '..' || name === 'node_modules'
     || name.includes('/') || name.includes('\\')) {
-    throw new Error(`无效 Profile：${JSON.stringify(name)}`)
+    throw new Error(`invalid profile: ${JSON.stringify(name)}`)
   }
 }
 

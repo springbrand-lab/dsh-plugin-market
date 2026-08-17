@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import { DEFAULT_CATALOG_URL, isNpmPackageName, loadCatalog } from './catalog.ts'
 import type { PluginAction } from './command.ts'
-import { assertMutationRequest, HttpError, readJsonObject, sendJson } from './http.ts'
+import { assertMutationRequest, errorBody, HttpError, readJsonObject, sendJson } from './http.ts'
 import {
   desktopManager,
   ordinaryManager,
@@ -43,14 +43,16 @@ interface ResolvedConfig {
 
 function stringField(body: Record<string, unknown>, key: string): string {
   const value = body[key]
-  if (typeof value !== 'string' || value.trim() === '') throw new HttpError(400, `${key} 无效`)
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new HttpError(400, 'error.fieldInvalid', `invalid ${key}`, { field: key })
+  }
   return value.trim()
 }
 
 function actionField(body: Record<string, unknown>): PluginAction {
   const action = body.action
   if (action === 'install' || action === 'update' || action === 'remove') return action
-  throw new HttpError(400, 'action 无效')
+  throw new HttpError(400, 'error.actionInvalid', 'invalid action')
 }
 
 async function installedPackage(
@@ -71,12 +73,14 @@ async function resolvePackage(
     const id = stringField(body, 'id')
     const entry = (await loadCatalog(config.catalogUrl)).find(item => item.id === id)
     if (entry?.installable !== true || entry.packageName === undefined) {
-      throw new HttpError(400, '该目录项不能通过 npm 安装')
+      throw new HttpError(400, 'error.notInstallable', 'catalog entry is not installable from npm')
     }
     return entry.packageName
   }
   const packageName = stringField(body, 'packageName')
-  if (!isNpmPackageName(packageName)) throw new HttpError(400, 'npm 包名无效')
+  if (!isNpmPackageName(packageName)) {
+    throw new HttpError(400, 'error.packageNameInvalid', 'invalid npm package name')
+  }
   return packageName
 }
 
@@ -86,7 +90,9 @@ async function mutate(
   manager: MarketplaceManager,
   operation: { running: boolean },
 ): Promise<unknown> {
-  if (operation.running) throw new HttpError(409, '另一个插件操作正在进行')
+  if (operation.running) {
+    throw new HttpError(409, 'error.operationRunning', 'another plugin operation is running')
+  }
   operation.running = true
   try {
     const action = actionField(body)
@@ -94,11 +100,21 @@ async function mutate(
     try {
       assertProfileName(profile)
     } catch (error) {
-      throw new HttpError(400, error instanceof Error ? error.message : String(error))
+      throw new HttpError(
+        400,
+        'error.profileInvalid',
+        error instanceof Error ? error.message : String(error),
+        { profile },
+      )
     }
     const packageName = await resolvePackage(body, action, config)
     if (action !== 'install' && !(await installedPackage(manager, profile, packageName))) {
-      throw new HttpError(404, `${packageName} 未安装在 ${profile}`)
+      throw new HttpError(
+        404,
+        'error.notInstalled',
+        `${packageName} is not installed in ${profile}`,
+        { packageName, profile },
+      )
     }
     await manager.runPlugin(profile, action, packageName, AbortSignal.timeout(5 * 60_000))
     return {
@@ -126,9 +142,9 @@ function route(
         await handler(req, res)
       } catch (error) {
         const status = error instanceof HttpError ? error.status : 500
-        const message = error instanceof Error ? error.message : String(error)
-        ctx.logger.warn(error instanceof Error ? error : new Error(message))
-        if (!res.headersSent) sendJson(res, status, { error: message })
+        const body = errorBody(error)
+        ctx.logger.warn(error instanceof Error ? error : new Error(body.error))
+        if (!res.headersSent) sendJson(res, status, body)
         else res.destroy()
       }
     },
@@ -141,11 +157,11 @@ function resolveConfig(config: Config | undefined): ResolvedConfig {
   const catalogUrl = config?.catalogUrl ?? DEFAULT_CATALOG_URL
   const parsed = new URL(catalogUrl)
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error('catalogUrl 必须是 HTTP(S) 地址')
+    throw new Error('catalogUrl must be an HTTP(S) address')
   }
   const restartDelayMs = config?.restartDelayMs ?? 1_500
   if (!Number.isInteger(restartDelayMs) || restartDelayMs < 500 || restartDelayMs > 30_000) {
-    throw new Error('restartDelayMs 必须是 500-30000 之间的整数')
+    throw new Error('restartDelayMs must be an integer between 500 and 30000')
   }
   return { profile, catalogUrl: parsed.toString(), restartDelayMs }
 }
@@ -166,7 +182,7 @@ export function apply(rawContext: Context, input?: Config): void {
   services.inject(['desktopPnpm'], (desktopContext) => {
     const desktopPnpm = (desktopContext as unknown as { get(name: string): unknown })
       .get('desktopPnpm') as DesktopPnpmLike | undefined
-    if (desktopPnpm === undefined) throw new Error('Desktop 缺少 desktopPnpm service')
+    if (desktopPnpm === undefined) throw new Error('Desktop is missing the desktopPnpm service')
     mount(desktopContext as HostContext, config, desktopManager(desktopProfiles, desktopPnpm))
   })
 }
@@ -176,11 +192,11 @@ function mount(ctx: HostContext, config: ResolvedConfig, manager: MarketplaceMan
   ctx.effect(() => {
     const disposers = [
       route(ctx, '/catalog', async (req, res) => {
-        if (req.method !== 'GET') throw new HttpError(405, '仅支持 GET')
+        if (req.method !== 'GET') throw new HttpError(405, 'error.methodNotAllowed', 'GET only')
         sendJson(res, 200, { plugins: await loadCatalog(config.catalogUrl) })
       }),
       route(ctx, '/profiles', async (req, res) => {
-        if (req.method !== 'GET') throw new HttpError(405, '仅支持 GET')
+        if (req.method !== 'GET') throw new HttpError(405, 'error.methodNotAllowed', 'GET only')
         sendJson(res, 200, { currentProfile: manager.currentProfile, profiles: await manager.listProfiles() })
       }),
       route(ctx, '/action', async (req, res) => {
@@ -189,7 +205,9 @@ function mount(ctx: HostContext, config: ResolvedConfig, manager: MarketplaceMan
       }),
       route(ctx, '/restart', async (req, res) => {
         assertMutationRequest(req)
-        if (operation.running) throw new HttpError(409, '插件操作尚未完成')
+        if (operation.running) {
+          throw new HttpError(409, 'error.restartPending', 'a plugin operation is still running')
+        }
         await readJsonObject(req)
         sendJson(res, 202, { ok: true })
         res.once('finish', () => {

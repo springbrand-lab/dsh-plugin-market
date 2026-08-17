@@ -25,7 +25,7 @@ export function buildInvocation(
   execArgv: readonly string[] = process.execArgv,
 ): Invocation {
   const entry = argv[1]
-  if (entry === undefined) throw new Error('无法定位当前 DSH CLI 入口')
+  if (entry === undefined) throw new Error('cannot locate the running DSH CLI entry point')
   return {
     command: process.execPath,
     args: [...execArgv, entry, 'plugin', '--profile', profile, ...pluginArguments(action, packageName)],
@@ -56,7 +56,7 @@ export async function runPluginCommand(
     child.once('error', reject)
     child.once('exit', (code, signal) => {
       if (code === 0) resolve()
-      else reject(new Error(output.trim() || `dsh plugin 失败（${signal ?? String(code)}）`))
+      else reject(new Error(output.trim() || `dsh plugin failed (${signal ?? String(code)})`))
     })
   })
 }

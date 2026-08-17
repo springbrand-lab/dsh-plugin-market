@@ -143,7 +143,7 @@ function normalize(rowValue: unknown): CatalogEntry | undefined {
 /** Convert either the public API response or plugins.json export into UI rows. */
 export function parseCatalog(value: unknown): CatalogEntry[] {
   const rows = record(value)?.plugins
-  if (!Array.isArray(rows)) throw new Error('插件目录缺少 plugins 数组')
+  if (!Array.isArray(rows)) throw new Error('plugin catalog is missing the plugins array')
   const unique = new Map<string, CatalogEntry>()
   for (const value of rows) {
     const entry = normalize(value)
@@ -161,9 +161,9 @@ export async function loadCatalog(url: string): Promise<CatalogEntry[]> {
       headers: { accept: 'application/json' },
       signal: controller.signal,
     })
-    if (!response.ok) throw new Error(`插件目录请求失败（HTTP ${String(response.status)}）`)
+    if (!response.ok) throw new Error(`plugin catalog request failed (HTTP ${String(response.status)})`)
     const contentType = response.headers.get('content-type') ?? ''
-    if (!contentType.includes('json')) throw new Error('插件目录返回的不是 JSON')
+    if (!contentType.includes('json')) throw new Error('plugin catalog did not return JSON')
     return parseCatalog(await response.json())
   } finally {
     clearTimeout(timeout)

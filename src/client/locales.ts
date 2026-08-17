@@ -50,6 +50,21 @@ export const en = {
   restarted: '{message}; DSH restarted',
   restarting: '{message}; restarting DSH…',
   nextStart: '{message}; takes effect the next time {profile} starts',
+  'error.methodNotAllowed': 'This endpoint rejected the request method.',
+  'error.originMissing': 'The request is missing the headers needed to prove it is same-origin.',
+  'error.crossSite': 'Cross-site requests are rejected.',
+  'error.contentType': 'The request body must be JSON.',
+  'error.bodyTooLarge': 'The request body is too large.',
+  'error.badJson': 'The request body is not valid JSON.',
+  'error.bodyNotObject': 'The request body must be a JSON object.',
+  'error.fieldInvalid': 'The {field} field is missing or invalid.',
+  'error.actionInvalid': 'Unknown action.',
+  'error.profileInvalid': 'Invalid profile name: {profile}.',
+  'error.notInstallable': 'This catalog entry cannot be installed from npm.',
+  'error.packageNameInvalid': 'Invalid npm package name.',
+  'error.notInstalled': '{packageName} is not installed in {profile}.',
+  'error.operationRunning': 'Another plugin operation is already running.',
+  'error.restartPending': 'The plugin operation has not finished yet.',
 } as const
 
 /** Simplified Chinese marketplace copy. */
@@ -104,6 +119,21 @@ export const zh: { [Key in keyof typeof en]: string } = {
   restarted: '{message}，DSH 已重启',
   restarting: '{message}，正在重启 DSH…',
   nextStart: '{message}；{profile} 下次启动时生效',
+  'error.methodNotAllowed': '该接口拒绝了此请求方法。',
+  'error.originMissing': '请求缺少证明同源所需的头部。',
+  'error.crossSite': '已拒绝跨站请求。',
+  'error.contentType': '请求体必须是 JSON。',
+  'error.bodyTooLarge': '请求体过大。',
+  'error.badJson': '请求体不是合法 JSON。',
+  'error.bodyNotObject': '请求体必须是 JSON 对象。',
+  'error.fieldInvalid': '{field} 字段缺失或无效。',
+  'error.actionInvalid': '未知操作。',
+  'error.profileInvalid': '无效的 Profile 名称：{profile}。',
+  'error.notInstallable': '该目录项无法通过 npm 安装。',
+  'error.packageNameInvalid': 'npm 包名无效。',
+  'error.notInstalled': '{packageName} 未安装在 {profile}。',
+  'error.operationRunning': '已有另一个插件操作正在进行。',
+  'error.restartPending': '插件操作尚未完成。',
 }
 
 /** Marketplace locale key. */

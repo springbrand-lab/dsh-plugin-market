@@ -31,7 +31,7 @@ describe('Desktop marketplace manager', () => {
       await manager.runPlugin('desktop', 'install', '@springbrand/example', signal)
       expect(runPlugin).toHaveBeenCalledWith(['add', '@springbrand/example'], dir, signal)
       await expect(manager.runPlugin('web', 'remove', '@springbrand/example', signal))
-        .rejects.toThrow('Desktop 只能修改当前 Profile：desktop')
+        .rejects.toThrow('Desktop can only modify its active profile: desktop')
       await manager.restart(1_500)
       expect(restart).toHaveBeenCalledOnce()
     } finally {

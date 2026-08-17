@@ -47,8 +47,8 @@ describe('DSH command delegation', () => {
 
   it('reads and validates profile names', () => {
     expect(launchedProfile(['node', 'dsh', '--profile', 'preview'])).toBe('preview')
-    expect(() => { assertProfileName('../outside') }).toThrow('无效 Profile')
-    expect(() => { assertProfileName('node_modules') }).toThrow('无效 Profile')
+    expect(() => { assertProfileName('../outside') }).toThrow('invalid profile')
+    expect(() => { assertProfileName('node_modules') }).toThrow('invalid profile')
     expect(() => { assertProfileName('preview') }).not.toThrow()
   })
 })
