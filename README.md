@@ -13,19 +13,50 @@ The visual plugin marketplace built into DeepSeek Harness Web settings. Open **S
 
 ![DeepSeek Harness Plugin Marketplace](assets/plugin-marketplace.png)
 
-## Install
+## Install from scratch
+
+You do not need DSH preinstalled.
+
+1. Install the LTS version of [Node.js](https://nodejs.org/), then close and reopen your terminal.
+2. Install DSH and pnpm:
+
+   ```sh
+   npm install --global pnpm @deepseek-ai/dsh
+   ```
+
+3. Confirm that DSH is available:
+
+   ```sh
+   dsh --version
+   ```
+
+4. Install the marketplace:
+
+   ```sh
+   dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+   ```
+
+5. Start DSH Web:
+
+   ```sh
+   dsh web
+   ```
+
+Keep the terminal open. Your browser normally opens automatically; otherwise, open the `http://127.0.0.1:...` address printed in the terminal. Then go to **Settings → Plugin Marketplace**.
+
+If `dsh` is still not found after reopening the terminal, use:
+
+```sh
+npx @deepseek-ai/dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+npx @deepseek-ai/dsh web
+```
+
+## Already have DSH?
 
 ```sh
 dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+dsh web
 ```
-
-Restart the Web profile:
-
-```sh
-dsh --profile web
-```
-
-Then open **Settings → Plugin Marketplace**.
 
 ## What you get
 

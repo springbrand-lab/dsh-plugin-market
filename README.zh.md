@@ -13,19 +13,50 @@
 
 ![DeepSeek Harness 插件市场](assets/plugin-marketplace.png)
 
-## 安装
+## 从零开始安装
+
+即使没有安装过 DSH，也可以按照下面步骤完成。
+
+1. 打开 [Node.js 官网](https://nodejs.org/)，下载并安装 LTS 版本，然后关闭并重新打开终端。macOS 使用“终端”，Windows 使用 PowerShell。
+2. 安装 DSH 和 pnpm：
+
+   ```sh
+   npm install --global pnpm @deepseek-ai/dsh
+   ```
+
+3. 确认 DSH 已安装：
+
+   ```sh
+   dsh --version
+   ```
+
+4. 安装插件市场：
+
+   ```sh
+   dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+   ```
+
+5. 启动 DSH Web：
+
+   ```sh
+   dsh web
+   ```
+
+保持终端窗口开启。浏览器通常会自动打开；如果没有，请打开终端中显示的 `http://127.0.0.1:端口号`。进入 **设置 → 插件市场** 即可开始使用。
+
+如果重新打开终端后仍提示 `dsh: command not found`，请改用：
+
+```sh
+npx @deepseek-ai/dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+npx @deepseek-ai/dsh web
+```
+
+## 已经安装过 DSH
 
 ```sh
 dsh plugin --profile web add @springbrand/dsh-plugin-marketplace
+dsh web
 ```
-
-重启 Web Profile：
-
-```sh
-dsh --profile web
-```
-
-然后打开 **设置 → 插件市场**。
 
 ## 你会得到
 
