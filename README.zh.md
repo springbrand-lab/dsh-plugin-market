@@ -93,6 +93,12 @@ dsh web
 
 在普通 DSH 中，市场默认操作当前运行的 Profile，也可以在页面中选择其他 Profile。SpringBrand Desktop 只暴露当前激活的 Profile，通过 `desktopPnpm` 执行 package operation，并通过 `desktopProfiles` 请求应用有序重启。该插件不提供任意 Hot-mount 或无缝端口交接。
 
+### 哪些 Profile 会出现在目标列表里
+
+普通 DSH 下的列表是：`web`、`headless`、本进程启动时使用的 Profile，以及 `<DSH home>/profiles` 下的每个目录，按名称排序。DSH home 取 `DSH_HOME`，未设置时为 `~/.dsh`。`profiles/node_modules` 不会作为目标出现。
+
+Profile 在初始化之前就会出现在列表中，因此可以在 `web` 会话里直接把插件装进 `headless`，无需先创建该 Profile。**已安装**视图针对每个 Profile 读的是它自己的 `package.json` dependencies——这也是它会列出目录中没有、由本市场之外的途径安装的包的原因。
+
 ## 配置
 
 在 Profile 的 Cordis 配置中可以覆盖：

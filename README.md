@@ -93,6 +93,12 @@ Plugins are third-party code. Catalog inclusion is not a security endorsement; i
 
 Under ordinary DSH, the marketplace targets the running profile by default and can select another profile in the UI. SpringBrand Desktop exposes only its active profile, runs package operations through `desktopPnpm`, and requests an orderly application restart through `desktopProfiles`. The plugin does not provide arbitrary hot-mounting or seamless port handoff.
 
+### Which profiles appear as targets
+
+Under ordinary DSH the profile list is `web`, `headless`, the profile this process was launched with, and every directory under `<DSH home>/profiles`, sorted by name. The DSH home is `DSH_HOME` when set, otherwise `~/.dsh`. `profiles/node_modules` is never offered as a target.
+
+A profile appears in the list before it has been initialized, so a plugin can be installed into `headless` from a `web` session without creating the profile first. What the **Installed** view reports for each profile is that profile's own `package.json` dependency map — which is why it also lists packages that were installed outside this marketplace and are absent from the catalog.
+
 ## Configuration
 
 Override these fields in the profile's Cordis configuration:
