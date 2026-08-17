@@ -17,10 +17,14 @@ export function buildInvocation(
 ): Invocation {
   const entry = argv[1]
   if (entry === undefined) throw new Error('无法定位当前 DSH CLI 入口')
-  const verb = action === 'install' ? 'add' : action
+  const operation = action === 'install'
+    ? ['add', packageName]
+    : action === 'update'
+      ? ['update', '--latest', '--config.minimumReleaseAge=0', packageName]
+      : ['remove', packageName]
   return {
     command: process.execPath,
-    args: [...execArgv, entry, 'plugin', '--profile', profile, verb, packageName],
+    args: [...execArgv, entry, 'plugin', '--profile', profile, ...operation],
   }
 }
 

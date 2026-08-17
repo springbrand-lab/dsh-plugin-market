@@ -31,7 +31,7 @@ Then open **Settings → Plugin Marketplace**.
 
 - **Browse and search** by name, author, description, or npm package, with visible plugin categories, repository avatars, and compact GitHub Star counts.
 - **Profile management** across `web`, `headless`, and other local profiles.
-- **Install, update, and remove in one place**, with the target profile and npm package shown before each operation.
+- **Install, update, and remove in one place**, with updates resolving the latest published version immediately and the target profile and npm package shown before each operation.
 - **Installed view** covering both catalog entries and profile dependencies that are not listed in the catalog.
 - **Clear activation timing**: changes to the current profile restart DSH automatically; changes to other profiles apply on their next launch.
 
