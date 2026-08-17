@@ -1,13 +1,19 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import { DEFAULT_CATALOG_URL, isNpmPackageName, loadCatalog } from './catalog.ts'
-import { runPluginCommand, type PluginAction } from './command.ts'
+import type { PluginAction } from './command.ts'
 import { assertMutationRequest, HttpError, readJsonObject, sendJson } from './http.ts'
-import { assertProfileName, launchedProfile, listProfiles } from './profile.ts'
-import { restartCurrentProcess } from './restart.ts'
+import {
+  desktopManager,
+  ordinaryManager,
+  type DesktopPnpmLike,
+  type DesktopProfilesLike,
+  type MarketplaceManager,
+} from './manager.ts'
+import { assertProfileName, launchedProfile } from './profile.ts'
 
 export const name = 'springbrand-plugin-marketplace'
-export const inject = ['webServer']
+export const inject = ['webServer', 'loader']
 
 const API = '/springbrand-market'
 
@@ -35,8 +41,6 @@ interface ResolvedConfig {
   restartDelayMs: number
 }
 
-let operationRunning = false
-
 function stringField(body: Record<string, unknown>, key: string): string {
   const value = body[key]
   if (typeof value !== 'string' || value.trim() === '') throw new HttpError(400, `${key} 无效`)
@@ -49,8 +53,12 @@ function actionField(body: Record<string, unknown>): PluginAction {
   throw new HttpError(400, 'action 无效')
 }
 
-async function installedPackage(profile: string, packageName: string): Promise<boolean> {
-  const row = (await listProfiles(profile)).find(item => item.name === profile)
+async function installedPackage(
+  manager: MarketplaceManager,
+  profile: string,
+  packageName: string,
+): Promise<boolean> {
+  const row = (await manager.listProfiles()).find(item => item.name === profile)
   return row !== undefined && Object.hasOwn(row.dependencies, packageName)
 }
 
@@ -72,9 +80,14 @@ async function resolvePackage(
   return packageName
 }
 
-async function mutate(body: Record<string, unknown>, config: ResolvedConfig): Promise<unknown> {
-  if (operationRunning) throw new HttpError(409, '另一个插件操作正在进行')
-  operationRunning = true
+async function mutate(
+  body: Record<string, unknown>,
+  config: ResolvedConfig,
+  manager: MarketplaceManager,
+  operation: { running: boolean },
+): Promise<unknown> {
+  if (operation.running) throw new HttpError(409, '另一个插件操作正在进行')
+  operation.running = true
   try {
     const action = actionField(body)
     const profile = stringField(body, 'profile')
@@ -84,19 +97,19 @@ async function mutate(body: Record<string, unknown>, config: ResolvedConfig): Pr
       throw new HttpError(400, error instanceof Error ? error.message : String(error))
     }
     const packageName = await resolvePackage(body, action, config)
-    if (action !== 'install' && !(await installedPackage(profile, packageName))) {
+    if (action !== 'install' && !(await installedPackage(manager, profile, packageName))) {
       throw new HttpError(404, `${packageName} 未安装在 ${profile}`)
     }
-    await runPluginCommand(profile, action, packageName)
+    await manager.runPlugin(profile, action, packageName, AbortSignal.timeout(5 * 60_000))
     return {
       ok: true,
       action,
       packageName,
       profile,
-      restartRequired: profile === config.profile,
+      restartRequired: profile === manager.currentProfile,
     }
   } finally {
-    operationRunning = false
+    operation.running = false
   }
 }
 
@@ -141,6 +154,25 @@ function resolveConfig(config: Config | undefined): ResolvedConfig {
 export function apply(rawContext: Context, input?: Config): void {
   const ctx = rawContext as HostContext
   const config = resolveConfig(input)
+  const services = rawContext as unknown as {
+    get(name: string): unknown
+    inject(names: string[], callback: (context: Context) => void): void
+  }
+  const desktopProfiles = services.get('desktopProfiles') as DesktopProfilesLike | undefined
+  if (desktopProfiles === undefined) {
+    mount(ctx, config, ordinaryManager(config.profile))
+    return
+  }
+  services.inject(['desktopPnpm'], (desktopContext) => {
+    const desktopPnpm = (desktopContext as unknown as { get(name: string): unknown })
+      .get('desktopPnpm') as DesktopPnpmLike | undefined
+    if (desktopPnpm === undefined) throw new Error('Desktop 缺少 desktopPnpm service')
+    mount(desktopContext as HostContext, config, desktopManager(desktopProfiles, desktopPnpm))
+  })
+}
+
+function mount(ctx: HostContext, config: ResolvedConfig, manager: MarketplaceManager): void {
+  const operation = { running: false }
   ctx.effect(() => {
     const disposers = [
       route(ctx, '/catalog', async (req, res) => {
@@ -149,18 +181,22 @@ export function apply(rawContext: Context, input?: Config): void {
       }),
       route(ctx, '/profiles', async (req, res) => {
         if (req.method !== 'GET') throw new HttpError(405, '仅支持 GET')
-        sendJson(res, 200, { currentProfile: config.profile, profiles: await listProfiles(config.profile) })
+        sendJson(res, 200, { currentProfile: manager.currentProfile, profiles: await manager.listProfiles() })
       }),
       route(ctx, '/action', async (req, res) => {
         assertMutationRequest(req)
-        sendJson(res, 200, await mutate(await readJsonObject(req), config))
+        sendJson(res, 200, await mutate(await readJsonObject(req), config, manager, operation))
       }),
       route(ctx, '/restart', async (req, res) => {
         assertMutationRequest(req)
-        if (operationRunning) throw new HttpError(409, '插件操作尚未完成')
+        if (operation.running) throw new HttpError(409, '插件操作尚未完成')
         await readJsonObject(req)
         sendJson(res, 202, { ok: true })
-        res.once('finish', () => { restartCurrentProcess(config.restartDelayMs) })
+        res.once('finish', () => {
+          void Promise.resolve(manager.restart(config.restartDelayMs)).catch((cause: unknown) => {
+            ctx.logger.warn(cause instanceof Error ? cause : new Error(String(cause)))
+          })
+        })
       }),
     ]
     return () => { for (const dispose of disposers) dispose() }

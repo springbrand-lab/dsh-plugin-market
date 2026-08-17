@@ -16,6 +16,7 @@ export interface CatalogEntry {
   url: string
   page?: string
   description: string
+  descriptions?: { en?: string; zh?: string }
   category: string
   entityType: string
   stars: number
@@ -64,11 +65,21 @@ export function isNpmPackageName(value: string): boolean {
   return /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(value)
 }
 
-function description(value: unknown, fallback: string): string {
+function description(value: unknown, fallback: string): Pick<CatalogEntry, 'description' | 'descriptions'> {
   const direct = text(value)
-  if (direct !== undefined) return direct
+  if (direct !== undefined) return { description: direct }
   const translations = record(value)
-  return text(translations?.zh) ?? text(translations?.en) ?? fallback
+  const en = text(translations?.en)
+  const zh = text(translations?.zh)
+  return {
+    description: en ?? zh ?? fallback,
+    ...(en === undefined && zh === undefined ? {} : {
+      descriptions: {
+        ...(en === undefined ? {} : { en }),
+        ...(zh === undefined ? {} : { zh }),
+      },
+    }),
+  }
 }
 
 function entryId(row: Record<string, unknown>, owner: string, name: string): string {
@@ -113,7 +124,7 @@ function normalize(rowValue: unknown): CatalogEntry | undefined {
     ...(icon === undefined ? {} : { icon }),
     url,
     ...(page === undefined ? {} : { page }),
-    description: summary,
+    ...summary,
     category,
     entityType,
     stars: number(row.stars),

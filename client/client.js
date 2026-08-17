@@ -209,55 +209,62 @@ const PAGE_SIZES = [
 	48,
 	96
 ];
-const ENTITY_LABELS = {
-	bundle: "插件包",
-	skill: "技能",
-	"agent-preset": "Agent 预设",
-	"mcp-server": "MCP 服务",
-	"cordis-plugin": "Cordis 插件",
-	installed: "已安装"
+const ENTITY_KEYS = {
+	bundle: "entity.bundle",
+	skill: "entity.skill",
+	"agent-preset": "entity.agentPreset",
+	"mcp-server": "entity.mcpServer",
+	"cordis-plugin": "entity.cordisPlugin",
+	installed: "entity.installed"
 };
-async function json(path, init) {
+const ACTION_KEYS = {
+	install: "action.install",
+	update: "action.update",
+	remove: "action.remove"
+};
+function entityLabel(t, entity) {
+	const key = ENTITY_KEYS[entity];
+	return key === void 0 ? entity : t(key);
+}
+async function json(t, path, init) {
 	const response = await fetch(`${API}${path}`, {
 		...init,
 		headers: init?.body === void 0 ? void 0 : { "content-type": "application/json" },
 		cache: "no-store"
 	});
 	const value = await response.json();
-	if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : `请求失败（HTTP ${String(response.status)}）`);
+	if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : t("requestFailed", { status: response.status }));
 	return value;
 }
-function actionText(action) {
-	if (action === "install") return "安装";
-	if (action === "update") return "更新";
-	return "卸载";
+function actionText(t, action) {
+	return t(ACTION_KEYS[action]);
 }
 function sleep(milliseconds) {
 	return new Promise((resolve) => {
 		setTimeout(resolve, milliseconds);
 	});
 }
-async function reloadAfterRestart() {
+async function reloadAfterRestart(t) {
 	await sleep(2e3);
 	const deadline = Date.now() + 3e4;
 	while (Date.now() < deadline) try {
-		await json("/profiles");
+		await json(t, "/profiles");
 		window.location.reload();
 		return;
 	} catch {
 		await sleep(600);
 	}
-	throw new Error("DSH 重启超时，请手动重新启动");
+	throw new Error(t("restartTimeout"));
 }
-function installedOnlyRows(profile, catalog) {
+function installedOnlyRows(profile, catalog, t) {
 	if (profile === void 0) return [];
 	const byPackage = new Map(catalog.flatMap((plugin) => plugin.packageName === void 0 ? [] : [[plugin.packageName, plugin]]));
 	return Object.entries(profile.dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
 		id: `installed:${packageName}`,
 		name: packageName,
-		owner: "Profile dependency",
+		owner: t("profileDependency"),
 		url: "",
-		description: `已安装版本 ${version}`,
+		description: t("installedVersion", { version }),
 		category: "installed",
 		entityType: "installed",
 		stars: 0,
@@ -266,7 +273,11 @@ function installedOnlyRows(profile, catalog) {
 		runsInstallScripts: false
 	});
 }
-function Marketplace() {
+function descriptionOf(plugin, locale) {
+	return locale === "zh" ? plugin.descriptions?.zh ?? plugin.description : plugin.descriptions?.en ?? plugin.description;
+}
+/** Plugin marketplace settings section. */
+function Marketplace({ t }) {
 	const [catalog, setCatalog] = (0, react.useState)([]);
 	const [profiles, setProfiles] = (0, react.useState)([]);
 	const [currentProfile, setCurrentProfile] = (0, react.useState)("web");
@@ -281,8 +292,9 @@ function Marketplace() {
 	const [loading, setLoading] = (0, react.useState)(true);
 	const [status, setStatus] = (0, react.useState)("");
 	const [error, setError] = (0, react.useState)("");
+	const locale = t("locale");
 	const loadProfiles = async () => {
-		const value = await json("/profiles");
+		const value = await json(t, "/profiles");
 		setProfiles(value.profiles);
 		setCurrentProfile(value.currentProfile);
 		setSelectedProfile((previous) => value.profiles.some((profile) => profile.name === previous) ? previous : value.currentProfile);
@@ -294,7 +306,7 @@ function Marketplace() {
 			sessionStorage.removeItem(OPERATION_KEY);
 			setStatus(saved);
 		}
-		Promise.all([json("/catalog"), loadProfiles()]).then(([directory]) => {
+		Promise.all([json(t, "/catalog"), loadProfiles()]).then(([directory]) => {
 			setCatalog(directory.plugins);
 		}).catch((cause) => {
 			setError(cause instanceof Error ? cause.message : String(cause));
@@ -323,14 +335,14 @@ function Marketplace() {
 	}, [draft, busy]);
 	const selected = profiles.find((profile) => profile.name === selectedProfile);
 	const installedNames = new Set(Object.keys(selected?.dependencies ?? {}));
-	const rows = installedOnly ? installedOnlyRows(selected, catalog) : catalog;
+	const rows = installedOnly ? installedOnlyRows(selected, catalog, t) : catalog;
 	const types = [...new Set(rows.map((plugin) => plugin.entityType))];
 	const typeCounts = /* @__PURE__ */ new Map();
 	for (const plugin of rows) typeCounts.set(plugin.entityType, (typeCounts.get(plugin.entityType) ?? 0) + 1);
 	const filtered = rows.filter((plugin) => {
 		if (entity !== "all" && plugin.entityType !== entity) return false;
 		const needle = query.trim().toLowerCase();
-		return needle === "" || `${plugin.name} ${plugin.owner} ${plugin.description} ${plugin.packageName ?? ""}`.toLowerCase().includes(needle);
+		return needle === "" || `${plugin.name} ${plugin.owner} ${plugin.description} ${Object.values(plugin.descriptions ?? {}).join(" ")} ${plugin.packageName ?? ""}`.toLowerCase().includes(needle);
 	});
 	const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
 	const safePage = Math.min(page, pageCount);
@@ -340,7 +352,7 @@ function Marketplace() {
 		setBusy(true);
 		setError("");
 		try {
-			const result = await json("/action", {
+			const result = await json(t, "/action", {
 				method: "POST",
 				body: JSON.stringify({
 					action: draft.action,
@@ -348,17 +360,23 @@ function Marketplace() {
 					...draft.action === "install" ? { id: draft.id } : { packageName: draft.packageName }
 				})
 			});
-			const message = `${draft.title} ${actionText(draft.action)}完成`;
+			const message = t("actionCompleted", {
+				title: draft.title,
+				action: actionText(t, draft.action)
+			});
 			if (result.restartRequired) {
-				sessionStorage.setItem(OPERATION_KEY, `${message}，DSH 已重启`);
-				setStatus(`${message}，正在重启 DSH…`);
-				await json("/restart", {
+				sessionStorage.setItem(OPERATION_KEY, t("restarted", { message }));
+				setStatus(t("restarting", { message }));
+				await json(t, "/restart", {
 					method: "POST",
 					body: "{}"
 				});
-				await reloadAfterRestart();
+				await reloadAfterRestart(t);
 			} else {
-				setStatus(`${message}；${selectedProfile} 下次启动时生效`);
+				setStatus(t("nextStart", {
+					message,
+					profile: selectedProfile
+				}));
 				setDraft(void 0);
 				await loadProfiles();
 			}
@@ -370,17 +388,17 @@ function Marketplace() {
 	};
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 		className: "sb-market",
-		"aria-label": "插件市场",
+		"aria-label": t("title"),
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("style", { children: MARKET_STYLE }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
 				className: "sb-head",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", { children: "插件市场" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: "发现并管理 DeepSeek Harness 插件" })] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", { children: t("title") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("intro") })] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 					className: "sb-profile",
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: "目标 Profile" }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("targetProfile") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 						className: "sb-select-wrap",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-							"aria-label": "目标 Profile",
+							"aria-label": t("targetProfile"),
 							value: selectedProfile,
 							onChange: (event) => {
 								setSelectedProfile(event.target.value);
@@ -395,7 +413,7 @@ function Marketplace() {
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "sb-tabs",
 					role: "tablist",
-					"aria-label": "目录范围",
+					"aria-label": t("scope"),
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						type: "button",
 						role: "tab",
@@ -404,7 +422,7 @@ function Marketplace() {
 							setInstalledOnly(false);
 							setEntity("all");
 						},
-						children: "发现"
+						children: t("discover")
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 						type: "button",
 						role: "tab",
@@ -414,7 +432,8 @@ function Marketplace() {
 							setEntity("all");
 						},
 						children: [
-							"已安装 (",
+							t("installed"),
+							" (",
 							Object.keys(selected?.dependencies ?? {}).length,
 							")"
 						]
@@ -425,20 +444,24 @@ function Marketplace() {
 					onChange: (event) => {
 						setQuery(event.target.value);
 					},
-					placeholder: "搜索名称、作者或 npm 包",
-					"aria-label": "搜索插件"
+					placeholder: t("searchPlaceholder"),
+					"aria-label": t("searchAria")
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("nav", {
 				className: "sb-categories",
-				"aria-label": "插件分类",
+				"aria-label": t("categories"),
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 					type: "button",
 					"aria-pressed": entity === "all",
 					onClick: () => {
 						setEntity("all");
 					},
-					children: ["全部 ", /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: rows.length })]
+					children: [
+						t("all"),
+						" ",
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: rows.length })
+					]
 				}), types.map((type) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 					type: "button",
 					"aria-pressed": entity === type,
@@ -446,7 +469,7 @@ function Marketplace() {
 						setEntity(type);
 					},
 					children: [
-						ENTITY_LABELS[type] ?? type,
+						entityLabel(t, type),
 						" ",
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: typeCounts.get(type) ?? 0 })
 					]
@@ -457,7 +480,7 @@ function Marketplace() {
 				role: "status",
 				children: [error || status, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 					type: "button",
-					"aria-label": "关闭提示",
+					"aria-label": t("closeNotice"),
 					onClick: () => {
 						setError("");
 						setStatus("");
@@ -469,10 +492,10 @@ function Marketplace() {
 				className: "sb-results",
 				children: loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 					className: "sb-empty",
-					children: "正在读取插件目录…"
+					children: t("loading")
 				}) : visible.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 					className: "sb-empty",
-					children: "没有匹配的插件"
+					children: t("empty")
 				}) : visible.map((plugin) => {
 					const installed = plugin.packageName !== void 0 && installedNames.has(plugin.packageName);
 					return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("article", {
@@ -503,23 +526,23 @@ function Marketplace() {
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 								className: "sb-description",
-								children: plugin.description
+								children: descriptionOf(plugin, locale)
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: "sb-card-meta",
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 										className: "sb-kind",
-										children: ENTITY_LABELS[plugin.entityType] ?? plugin.entityType
+										children: entityLabel(t, plugin.entityType)
 									}),
 									plugin.runsInstallScripts && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 										className: "sb-warning",
-										title: "该包声明了安装脚本",
-										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(TriangleAlert, { "aria-hidden": "true" }), "安装脚本"]
+										title: t("installScriptsTitle"),
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(TriangleAlert, { "aria-hidden": "true" }), t("installScripts")]
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 										className: "sb-stars",
-										"aria-label": `${String(plugin.stars)} stars`,
+										"aria-label": t("stars", { count: plugin.stars }),
 										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Star, { "aria-hidden": "true" }), formatStars(plugin.stars)]
 									})
 								]
@@ -533,7 +556,7 @@ function Marketplace() {
 									href: plugin.page ?? plugin.url,
 									target: "_blank",
 									rel: "noreferrer",
-									children: "详情"
+									children: t("details")
 								}), installed && plugin.packageName !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									type: "button",
 									onClick: () => {
@@ -543,7 +566,7 @@ function Marketplace() {
 											title: plugin.name
 										});
 									},
-									children: "更新"
+									children: t("update")
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									className: "sb-danger",
 									type: "button",
@@ -554,7 +577,7 @@ function Marketplace() {
 											title: plugin.name
 										});
 									},
-									children: "卸载"
+									children: t("remove")
 								})] }) : plugin.installable && plugin.packageName !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									className: "sb-primary",
 									type: "button",
@@ -566,10 +589,10 @@ function Marketplace() {
 											title: plugin.name
 										});
 									},
-									children: "安装"
+									children: t("install")
 								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: "sb-muted",
-									children: "仅展示"
+									children: t("displayOnly")
 								})]
 							})] })
 						]
@@ -579,11 +602,7 @@ function Marketplace() {
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("footer", {
 				className: "sb-pager",
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
-						"共 ",
-						filtered.length,
-						" 项"
-					] }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("total", { count: filtered.length }) }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							type: "button",
@@ -591,7 +610,7 @@ function Marketplace() {
 							onClick: () => {
 								setPage(safePage - 1);
 							},
-							children: "上一页"
+							children: t("previous")
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("strong", { children: [
 							safePage,
@@ -604,16 +623,20 @@ function Marketplace() {
 							onClick: () => {
 								setPage(safePage + 1);
 							},
-							children: "下一页"
+							children: t("next")
 						})
 					] }),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: ["每页 ", /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-						value: pageSize,
-						onChange: (event) => {
-							setPageSize(Number(event.target.value));
-						},
-						children: PAGE_SIZES.map((size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", { children: size }, size))
-					})] })
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [
+						t("perPage"),
+						" ",
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+							value: pageSize,
+							onChange: (event) => {
+								setPageSize(Number(event.target.value));
+							},
+							children: PAGE_SIZES.map((size) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", { children: size }, size))
+						})
+					] })
 				]
 			}),
 			draft !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -624,21 +647,19 @@ function Marketplace() {
 					"aria-modal": "true",
 					"aria-labelledby": "sb-dialog-title",
 					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("h3", {
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
 							id: "sb-dialog-title",
-							children: ["确认", actionText(draft.action)]
+							children: t("confirm", { action: t(draft.action) })
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", { children: [
-							"将在 ",
+							t("dialogTargetBefore", { action: actionText(t, draft.action) }),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: selectedProfile }),
-							" Profile 中",
-							actionText(draft.action),
-							"："
+							t("dialogTargetAfter", { action: actionText(t, draft.action) })
 						] }),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: draft.packageName }),
 						selectedProfile === currentProfile && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: "sb-restart-note",
-							children: "完成后 DSH 会自动重启，页面将短暂断开。"
+							children: t("restartNote")
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: "sb-dialog-actions",
@@ -648,7 +669,7 @@ function Marketplace() {
 								onClick: () => {
 									setDraft(void 0);
 								},
-								children: "取消"
+								children: t("cancel")
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: draft.action === "remove" ? "sb-danger" : "sb-primary",
 								type: "button",
@@ -657,7 +678,7 @@ function Marketplace() {
 								onClick: () => {
 									submit();
 								},
-								children: busy ? "执行中…" : `确认${actionText(draft.action)}`
+								children: busy ? t("running") : t("confirm", { action: t(draft.action) })
 							})]
 						})
 					]
@@ -706,15 +727,132 @@ const MARKET_STYLE = `
 `;
 
 //#endregion
+//#region src/client/locales.ts
+/** English marketplace copy (the key-set source of truth). */
+const en = {
+	locale: "en",
+	nav: "Plugin Marketplace",
+	title: "Plugin Marketplace",
+	intro: "Discover and manage DeepSeek Harness plugins",
+	targetProfile: "Target profile",
+	scope: "Catalog scope",
+	discover: "Discover",
+	installed: "Installed",
+	searchPlaceholder: "Search by name, author, or npm package",
+	searchAria: "Search plugins",
+	categories: "Plugin categories",
+	all: "All",
+	closeNotice: "Dismiss notice",
+	loading: "Loading plugin catalog…",
+	empty: "No matching plugins",
+	"entity.bundle": "Bundle",
+	"entity.skill": "Skill",
+	"entity.agentPreset": "Agent preset",
+	"entity.mcpServer": "MCP server",
+	"entity.cordisPlugin": "Cordis plugin",
+	"entity.installed": "Installed",
+	installScriptsTitle: "This package declares install scripts",
+	installScripts: "Install scripts",
+	stars: "{count} stars",
+	details: "Details",
+	install: "Install",
+	update: "Update",
+	remove: "Remove",
+	"action.install": "install",
+	"action.update": "update",
+	"action.remove": "remove",
+	displayOnly: "View only",
+	total: "{count} items",
+	previous: "Previous",
+	next: "Next",
+	perPage: "Per page",
+	confirm: "Confirm {action}",
+	dialogTargetBefore: "This will {action} the package in ",
+	dialogTargetAfter: " Profile:",
+	restartNote: "DSH will restart automatically when this finishes, so the page will disconnect briefly.",
+	cancel: "Cancel",
+	running: "Working…",
+	requestFailed: "Request failed (HTTP {status})",
+	restartTimeout: "DSH took too long to restart. Please restart it manually.",
+	profileDependency: "Profile dependency",
+	installedVersion: "Installed version {version}",
+	actionCompleted: "{title} {action} complete",
+	restarted: "{message}; DSH restarted",
+	restarting: "{message}; restarting DSH…",
+	nextStart: "{message}; takes effect the next time {profile} starts"
+};
+/** Simplified Chinese marketplace copy. */
+const zh = {
+	locale: "zh",
+	nav: "插件市场",
+	title: "插件市场",
+	intro: "发现并管理 DeepSeek Harness 插件",
+	targetProfile: "目标 Profile",
+	scope: "目录范围",
+	discover: "发现",
+	installed: "已安装",
+	searchPlaceholder: "搜索名称、作者或 npm 包",
+	searchAria: "搜索插件",
+	categories: "插件分类",
+	all: "全部",
+	closeNotice: "关闭提示",
+	loading: "正在读取插件目录…",
+	empty: "没有匹配的插件",
+	"entity.bundle": "插件包",
+	"entity.skill": "技能",
+	"entity.agentPreset": "Agent 预设",
+	"entity.mcpServer": "MCP 服务",
+	"entity.cordisPlugin": "Cordis 插件",
+	"entity.installed": "已安装",
+	installScriptsTitle: "该包声明了安装脚本",
+	installScripts: "安装脚本",
+	stars: "{count} stars",
+	details: "详情",
+	install: "安装",
+	update: "更新",
+	remove: "卸载",
+	"action.install": "安装",
+	"action.update": "更新",
+	"action.remove": "卸载",
+	displayOnly: "仅展示",
+	total: "共 {count} 项",
+	previous: "上一页",
+	next: "下一页",
+	perPage: "每页",
+	confirm: "确认{action}",
+	dialogTargetBefore: "将在 ",
+	dialogTargetAfter: " Profile 中{action}：",
+	restartNote: "完成后 DSH 会自动重启，页面将短暂断开。",
+	cancel: "取消",
+	running: "执行中…",
+	requestFailed: "请求失败（HTTP {status}）",
+	restartTimeout: "DSH 重启超时，请手动重新启动。",
+	profileDependency: "Profile 依赖",
+	installedVersion: "已安装版本 {version}",
+	actionCompleted: "{title} {action}完成",
+	restarted: "{message}，DSH 已重启",
+	restarting: "{message}，正在重启 DSH…",
+	nextStart: "{message}；{profile} 下次启动时生效"
+};
+/** Locale namespace owned by the marketplace. */
+const NS = "settings.pluginMarketplace";
+
+//#endregion
 //#region src/client/index.ts
-const inject = ["slots"];
+const inject = ["slots", "locale"];
 /** Add the marketplace as an independent Web Settings section. */
 function apply(ctx) {
+	ctx.effect(() => ctx.locale.register(NS, {
+		zh,
+		en
+	}), "plugin-marketplace: dictionaries");
+	const t = ctx.locale.bind(NS);
 	ctx.slots.inject("settings.section", () => ctx.slots.register({
 		name: "settings.section",
 		id: "springbrand-plugin-marketplace",
 		order: 50,
-		label: "插件市场"
+		label: () => t("nav"),
+		locale: NS
 	}, Marketplace));
 }
 

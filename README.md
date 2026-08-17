@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 [![npm](https://img.shields.io/npm/v/%40springbrand%2Fdsh-plugin-marketplace)](https://www.npmjs.com/package/@springbrand/dsh-plugin-marketplace)
 [![CI](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml/badge.svg)](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml)
 
-The visual plugin marketplace built into DeepSeek Harness Web settings. Open **Settings → Plugin Marketplace** to browse and search the catalog, then install, update, or remove plugins across profiles.
+The visual plugin marketplace built into DeepSeek Harness Web settings and bundled with SpringBrand Desktop. Open **Settings → Plugin Marketplace** to browse and search the catalog, then install, update, or remove plugins.
 
 ![DeepSeek Harness Plugin Marketplace](assets/plugin-marketplace.png)
 
@@ -61,7 +61,7 @@ dsh web
 ## What you get
 
 - **Browse and search** by name, author, description, or npm package, with visible plugin categories, repository avatars, and compact GitHub Star counts.
-- **Profile management** across `web`, `headless`, and other local profiles.
+- **Profile management** across `web`, `headless`, and other local profiles under ordinary DSH; SpringBrand Desktop limits operations to its active profile.
 - **Install, update, and remove in one place**, with updates resolving the latest published version immediately and the target profile and npm package shown before each operation.
 - **Installed view** covering both catalog entries and profile dependencies that are not listed in the catalog.
 - **Clear activation timing**: changes to the current profile restart DSH automatically; changes to other profiles apply on their next launch.
@@ -72,7 +72,7 @@ dsh web
 - The server resolves the npm package name from the catalog again instead of accepting an arbitrary source from the browser.
 - Updates and removals accept only valid npm package names already installed in the selected profile.
 - Mutation endpoints accept same-origin JSON POST requests only, with an 8 KiB body limit.
-- DSH commands are launched with argument arrays, never through a shell, and only one plugin operation runs at a time.
+- Ordinary DSH commands are launched with argument arrays, never through a shell. SpringBrand Desktop delegates to its managed package-operation service. Only one plugin operation runs at a time.
 
 Plugins are third-party code. Catalog inclusion is not a security endorsement; install only sources you trust.
 
@@ -86,10 +86,12 @@ Plugins are third-party code. Catalog inclusion is not a security endorsement; i
       |
       +--> [dshplugin.market/plugins.json]
       |
-      +--> dsh plugin --profile <profile> add|update|remove <package>
+      +--> ordinary DSH: dsh plugin --profile <profile> add|update|remove <package>
+      |
+      +--> SpringBrand Desktop: desktopPnpm.runPlugin() for the active profile
 ```
 
-The marketplace targets the running profile by default, but you can select another profile in the UI. The first release uses process restarts and does not provide arbitrary plugin hot-mounting or seamless port handoff.
+Under ordinary DSH, the marketplace targets the running profile by default and can select another profile in the UI. SpringBrand Desktop exposes only its active profile, runs package operations through `desktopPnpm`, and requests an orderly application restart through `desktopProfiles`. The plugin does not provide arbitrary hot-mounting or seamless port handoff.
 
 ## Configuration
 
@@ -102,9 +104,9 @@ config:
   restartDelayMs: 1500
 ```
 
-- `profile`: the profile used by the running DSH process; read from the launch arguments by default.
+- `profile`: the profile used by an ordinary DSH process; read from the launch arguments by default. SpringBrand Desktop always uses its active profile.
 - `catalogUrl`: the plugin catalog JSON URL; HTTP and HTTPS are supported.
-- `restartDelayMs`: delay before restarting the current profile, from 500 to 30000 milliseconds.
+- `restartDelayMs`: delay before restarting an ordinary DSH process, from 500 to 30000 milliseconds. SpringBrand Desktop owns its restart timing.
 
 ## Uninstall
 

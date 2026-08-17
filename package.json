@@ -1,6 +1,6 @@
 {
   "name": "@springbrand/dsh-plugin-marketplace",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A visual plugin marketplace for DeepSeek Harness profiles.",
   "type": "module",
   "main": "lib/index.js",
@@ -27,6 +27,7 @@
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-settings"
       ],

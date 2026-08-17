@@ -26,9 +26,9 @@ export function profileDirectory(name: string): string {
   return resolve(dshHome(), 'profiles', name)
 }
 
-async function dependencies(name: string): Promise<Record<string, string>> {
+async function dependencies(directory: string): Promise<Record<string, string>> {
   try {
-    const raw = JSON.parse(await readFile(resolve(profileDirectory(name), 'package.json'), 'utf8')) as unknown
+    const raw = JSON.parse(await readFile(resolve(directory, 'package.json'), 'utf8')) as unknown
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
     const value = (raw as Record<string, unknown>).dependencies
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
@@ -39,6 +39,12 @@ async function dependencies(name: string): Promise<Record<string, string>> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
     throw error
   }
+}
+
+/** Read one profile dependency snapshot from an authoritative directory. */
+export async function readProfileState(name: string, directory: string = profileDirectory(name)): Promise<ProfileState> {
+  assertProfileName(name)
+  return { name, dependencies: await dependencies(directory) }
 }
 
 /** List initialized profiles plus the two built-in names DSH can initialize. */
@@ -53,7 +59,7 @@ export async function listProfiles(current: string): Promise<ProfileState[]> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
-  return Promise.all([...names].sort().map(async name => ({ name, dependencies: await dependencies(name) })))
+  return Promise.all([...names].sort().map(name => readProfileState(name)))
 }
 
 /** Read `--profile <name>` from the current DSH launch. */

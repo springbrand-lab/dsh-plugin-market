@@ -4,6 +4,7 @@ import Package from 'lucide-react/dist/esm/icons/package.mjs'
 import Star from 'lucide-react/dist/esm/icons/star.mjs'
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs'
 import { formatStars } from '../catalog.ts'
+import type { MarketplaceKey, MarketplaceTranslate } from './locales.ts'
 
 const API = '/springbrand-market'
 const OPERATION_KEY = 'springbrand-market:last-operation'
@@ -17,6 +18,7 @@ interface Plugin {
   url: string
   page?: string
   description: string
+  descriptions?: { en?: string; zh?: string }
   category: string
   entityType: string
   stars: number
@@ -53,60 +55,75 @@ interface ActionResponse {
   profile: string
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  bundle: '插件包',
-  skill: '技能',
-  'agent-preset': 'Agent 预设',
-  'mcp-server': 'MCP 服务',
-  'cordis-plugin': 'Cordis 插件',
-  installed: '已安装',
+const ENTITY_KEYS: Record<string, MarketplaceKey> = {
+  bundle: 'entity.bundle',
+  skill: 'entity.skill',
+  'agent-preset': 'entity.agentPreset',
+  'mcp-server': 'entity.mcpServer',
+  'cordis-plugin': 'entity.cordisPlugin',
+  installed: 'entity.installed',
 }
 
-async function json<T>(path: string, init?: RequestInit): Promise<T> {
+const ACTION_KEYS: Record<Action, MarketplaceKey> = {
+  install: 'action.install',
+  update: 'action.update',
+  remove: 'action.remove',
+}
+
+function entityLabel(t: MarketplaceTranslate, entity: string): string {
+  const key = ENTITY_KEYS[entity]
+  return key === undefined ? entity : t(key)
+}
+
+async function json<T>(t: MarketplaceTranslate, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, {
     ...init,
     headers: init?.body === undefined ? undefined : { 'content-type': 'application/json' },
     cache: 'no-store',
   })
   const value = await response.json() as { error?: unknown }
-  if (!response.ok) throw new Error(typeof value.error === 'string' ? value.error : `请求失败（HTTP ${String(response.status)}）`)
+  if (!response.ok) throw new Error(typeof value.error === 'string'
+    ? value.error
+    : t('requestFailed', { status: response.status }))
   return value as T
 }
 
-function actionText(action: Action): string {
-  if (action === 'install') return '安装'
-  if (action === 'update') return '更新'
-  return '卸载'
+function actionText(t: MarketplaceTranslate, action: Action): string {
+  return t(ACTION_KEYS[action])
 }
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise(resolve => { setTimeout(resolve, milliseconds) })
 }
 
-async function reloadAfterRestart(): Promise<void> {
+async function reloadAfterRestart(t: MarketplaceTranslate): Promise<void> {
   await sleep(2_000)
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
     try {
-      await json<ProfilesResponse>('/profiles')
+      await json<ProfilesResponse>(t, '/profiles')
       window.location.reload()
       return
     } catch {
       await sleep(600)
     }
   }
-  throw new Error('DSH 重启超时，请手动重新启动')
+  throw new Error(t('restartTimeout'))
 }
 
-function installedOnlyRows(profile: Profile | undefined, catalog: Plugin[]): Plugin[] {
+function installedOnlyRows(
+  profile: Profile | undefined,
+  catalog: Plugin[],
+  t: MarketplaceTranslate,
+): Plugin[] {
   if (profile === undefined) return []
   const byPackage = new Map(catalog.flatMap(plugin => plugin.packageName === undefined ? [] : [[plugin.packageName, plugin]]))
   return Object.entries(profile.dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
     id: `installed:${packageName}`,
     name: packageName,
-    owner: 'Profile dependency',
+    owner: t('profileDependency'),
     url: '',
-    description: `已安装版本 ${version}`,
+    description: t('installedVersion', { version }),
     category: 'installed',
     entityType: 'installed',
     stars: 0,
@@ -116,7 +133,14 @@ function installedOnlyRows(profile: Profile | undefined, catalog: Plugin[]): Plu
   })
 }
 
-export function Marketplace() {
+function descriptionOf(plugin: Plugin, locale: string): string {
+  return locale === 'zh'
+    ? plugin.descriptions?.zh ?? plugin.description
+    : plugin.descriptions?.en ?? plugin.description
+}
+
+/** Plugin marketplace settings section. */
+export function Marketplace({ t }: { t: MarketplaceTranslate }) {
   const [catalog, setCatalog] = useState<Plugin[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [currentProfile, setCurrentProfile] = useState('web')
@@ -131,9 +155,10 @@ export function Marketplace() {
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const locale = t('locale')
 
   const loadProfiles = async (): Promise<ProfilesResponse> => {
-    const value = await json<ProfilesResponse>('/profiles')
+    const value = await json<ProfilesResponse>(t, '/profiles')
     setProfiles(value.profiles)
     setCurrentProfile(value.currentProfile)
     setSelectedProfile(previous => value.profiles.some(profile => profile.name === previous)
@@ -149,7 +174,7 @@ export function Marketplace() {
       setStatus(saved)
     }
     Promise.all([
-      json<{ plugins: Plugin[] }>('/catalog'),
+      json<{ plugins: Plugin[] }>(t, '/catalog'),
       loadProfiles(),
     ]).then(([directory]) => {
       setCatalog(directory.plugins)
@@ -170,14 +195,15 @@ export function Marketplace() {
 
   const selected = profiles.find(profile => profile.name === selectedProfile)
   const installedNames = new Set(Object.keys(selected?.dependencies ?? {}))
-  const rows = installedOnly ? installedOnlyRows(selected, catalog) : catalog
+  const rows = installedOnly ? installedOnlyRows(selected, catalog, t) : catalog
   const types = [...new Set(rows.map(plugin => plugin.entityType))]
   const typeCounts = new Map<string, number>()
   for (const plugin of rows) typeCounts.set(plugin.entityType, (typeCounts.get(plugin.entityType) ?? 0) + 1)
   const filtered = rows.filter((plugin) => {
     if (entity !== 'all' && plugin.entityType !== entity) return false
     const needle = query.trim().toLowerCase()
-    return needle === '' || `${plugin.name} ${plugin.owner} ${plugin.description} ${plugin.packageName ?? ''}`.toLowerCase().includes(needle)
+    return needle === '' || `${plugin.name} ${plugin.owner} ${plugin.description} ${Object.values(plugin.descriptions ?? {}).join(' ')} ${plugin.packageName ?? ''}`
+      .toLowerCase().includes(needle)
   })
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage = Math.min(page, pageCount)
@@ -188,7 +214,7 @@ export function Marketplace() {
     setBusy(true)
     setError('')
     try {
-      const result = await json<ActionResponse>('/action', {
+      const result = await json<ActionResponse>(t, '/action', {
         method: 'POST',
         body: JSON.stringify({
           action: draft.action,
@@ -196,14 +222,14 @@ export function Marketplace() {
           ...(draft.action === 'install' ? { id: draft.id } : { packageName: draft.packageName }),
         }),
       })
-      const message = `${draft.title} ${actionText(draft.action)}完成`
+      const message = t('actionCompleted', { title: draft.title, action: actionText(t, draft.action) })
       if (result.restartRequired) {
-        sessionStorage.setItem(OPERATION_KEY, `${message}，DSH 已重启`)
-        setStatus(`${message}，正在重启 DSH…`)
-        await json('/restart', { method: 'POST', body: '{}' })
-        await reloadAfterRestart()
+        sessionStorage.setItem(OPERATION_KEY, t('restarted', { message }))
+        setStatus(t('restarting', { message }))
+        await json(t, '/restart', { method: 'POST', body: '{}' })
+        await reloadAfterRestart(t)
       } else {
-        setStatus(`${message}；${selectedProfile} 下次启动时生效`)
+        setStatus(t('nextStart', { message, profile: selectedProfile }))
         setDraft(undefined)
         await loadProfiles()
       }
@@ -215,17 +241,17 @@ export function Marketplace() {
   }
 
   return (
-    <section className="sb-market" aria-label="插件市场">
+    <section className="sb-market" aria-label={t('title')}>
       <style>{MARKET_STYLE}</style>
       <header className="sb-head">
         <div>
-          <h2>插件市场</h2>
-          <p>发现并管理 DeepSeek Harness 插件</p>
+          <h2>{t('title')}</h2>
+          <p>{t('intro')}</p>
         </div>
         <label className="sb-profile">
-          <span>目标 Profile</span>
+          <span>{t('targetProfile')}</span>
           <span className="sb-select-wrap">
-            <select aria-label="目标 Profile" value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value) }}>
+            <select aria-label={t('targetProfile')} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value) }}>
               {profiles.map(profile => <option key={profile.name}>{profile.name}</option>)}
             </select>
             <ChevronDown aria-hidden="true" />
@@ -234,24 +260,24 @@ export function Marketplace() {
       </header>
 
       <div className="sb-toolbar">
-        <div className="sb-tabs" role="tablist" aria-label="目录范围">
-          <button type="button" role="tab" aria-selected={!installedOnly} onClick={() => { setInstalledOnly(false); setEntity('all') }}>发现</button>
-          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true); setEntity('all') }}>已安装 ({Object.keys(selected?.dependencies ?? {}).length})</button>
+        <div className="sb-tabs" role="tablist" aria-label={t('scope')}>
+          <button type="button" role="tab" aria-selected={!installedOnly} onClick={() => { setInstalledOnly(false); setEntity('all') }}>{t('discover')}</button>
+          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true); setEntity('all') }}>{t('installed')} ({Object.keys(selected?.dependencies ?? {}).length})</button>
         </div>
         <input
           type="search"
           value={query}
           onChange={event => { setQuery(event.target.value) }}
-          placeholder="搜索名称、作者或 npm 包"
-          aria-label="搜索插件"
+          placeholder={t('searchPlaceholder')}
+          aria-label={t('searchAria')}
         />
       </div>
 
-      <nav className="sb-categories" aria-label="插件分类">
-        <button type="button" aria-pressed={entity === 'all'} onClick={() => { setEntity('all') }}>全部 <span>{rows.length}</span></button>
+      <nav className="sb-categories" aria-label={t('categories')}>
+        <button type="button" aria-pressed={entity === 'all'} onClick={() => { setEntity('all') }}>{t('all')} <span>{rows.length}</span></button>
         {types.map(type => (
           <button key={type} type="button" aria-pressed={entity === type} onClick={() => { setEntity(type) }}>
-            {ENTITY_LABELS[type] ?? type} <span>{typeCounts.get(type) ?? 0}</span>
+            {entityLabel(t, type)} <span>{typeCounts.get(type) ?? 0}</span>
           </button>
         ))}
       </nav>
@@ -259,12 +285,12 @@ export function Marketplace() {
       {(status !== '' || error !== '') && (
         <div className={error === '' ? 'sb-notice' : 'sb-notice sb-error'} role="status">
           {error || status}
-          <button type="button" aria-label="关闭提示" onClick={() => { setError(''); setStatus('') }}>×</button>
+          <button type="button" aria-label={t('closeNotice')} onClick={() => { setError(''); setStatus('') }}>×</button>
         </div>
       )}
 
       <div className="sb-results">
-        {loading ? <p className="sb-empty">正在读取插件目录…</p> : visible.length === 0 ? <p className="sb-empty">没有匹配的插件</p> : visible.map((plugin) => {
+        {loading ? <p className="sb-empty">{t('loading')}</p> : visible.length === 0 ? <p className="sb-empty">{t('empty')}</p> : visible.map((plugin) => {
           const installed = plugin.packageName !== undefined && installedNames.has(plugin.packageName)
           return (
             <article className="sb-card" key={plugin.id}>
@@ -282,11 +308,11 @@ export function Marketplace() {
                   <p>{plugin.owner}</p>
                 </div>
               </div>
-              <p className="sb-description">{plugin.description}</p>
+              <p className="sb-description">{descriptionOf(plugin, locale)}</p>
               <div className="sb-card-meta">
-                <span className="sb-kind">{ENTITY_LABELS[plugin.entityType] ?? plugin.entityType}</span>
-                {plugin.runsInstallScripts && <span className="sb-warning" title="该包声明了安装脚本"><TriangleAlert aria-hidden="true" />安装脚本</span>}
-                <span className="sb-stars" aria-label={`${String(plugin.stars)} stars`}><Star aria-hidden="true" />{formatStars(plugin.stars)}</span>
+                <span className="sb-kind">{entityLabel(t, plugin.entityType)}</span>
+                {plugin.runsInstallScripts && <span className="sb-warning" title={t('installScriptsTitle')}><TriangleAlert aria-hidden="true" />{t('installScripts')}</span>}
+                <span className="sb-stars" aria-label={t('stars', { count: plugin.stars })}><Star aria-hidden="true" />{formatStars(plugin.stars)}</span>
               </div>
               <footer>
                 <div className="sb-meta">
@@ -294,15 +320,15 @@ export function Marketplace() {
                   {plugin.language && <span>{plugin.language}</span>}
                 </div>
                 <div className="sb-actions">
-                  {plugin.url !== '' && <a href={plugin.page ?? plugin.url} target="_blank" rel="noreferrer">详情</a>}
+                  {plugin.url !== '' && <a href={plugin.page ?? plugin.url} target="_blank" rel="noreferrer">{t('details')}</a>}
                   {installed && plugin.packageName !== undefined ? (
                     <>
-                      <button type="button" onClick={() => { setDraft({ action: 'update', packageName: plugin.packageName!, title: plugin.name }) }}>更新</button>
-                      <button className="sb-danger" type="button" onClick={() => { setDraft({ action: 'remove', packageName: plugin.packageName!, title: plugin.name }) }}>卸载</button>
+                      <button type="button" onClick={() => { setDraft({ action: 'update', packageName: plugin.packageName!, title: plugin.name }) }}>{t('update')}</button>
+                      <button className="sb-danger" type="button" onClick={() => { setDraft({ action: 'remove', packageName: plugin.packageName!, title: plugin.name }) }}>{t('remove')}</button>
                     </>
                   ) : plugin.installable && plugin.packageName !== undefined ? (
-                    <button className="sb-primary" type="button" onClick={() => { setDraft({ action: 'install', id: plugin.id, packageName: plugin.packageName!, title: plugin.name }) }}>安装</button>
-                  ) : <span className="sb-muted">仅展示</span>}
+                    <button className="sb-primary" type="button" onClick={() => { setDraft({ action: 'install', id: plugin.id, packageName: plugin.packageName!, title: plugin.name }) }}>{t('install')}</button>
+                  ) : <span className="sb-muted">{t('displayOnly')}</span>}
                 </div>
               </footer>
             </article>
@@ -311,26 +337,26 @@ export function Marketplace() {
       </div>
 
       <footer className="sb-pager">
-        <span>共 {filtered.length} 项</span>
+        <span>{t('total', { count: filtered.length })}</span>
         <div>
-          <button type="button" disabled={safePage <= 1} onClick={() => { setPage(safePage - 1) }}>上一页</button>
+          <button type="button" disabled={safePage <= 1} onClick={() => { setPage(safePage - 1) }}>{t('previous')}</button>
           <strong>{safePage} / {pageCount}</strong>
-          <button type="button" disabled={safePage >= pageCount} onClick={() => { setPage(safePage + 1) }}>下一页</button>
+          <button type="button" disabled={safePage >= pageCount} onClick={() => { setPage(safePage + 1) }}>{t('next')}</button>
         </div>
-        <label>每页 <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)) }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</select></label>
+        <label>{t('perPage')} <select value={pageSize} onChange={event => { setPageSize(Number(event.target.value)) }}>{PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</select></label>
       </footer>
 
       {draft !== undefined && (
         <div className="sb-overlay">
           <div className="sb-dialog" role="dialog" aria-modal="true" aria-labelledby="sb-dialog-title">
-            <h3 id="sb-dialog-title">确认{actionText(draft.action)}</h3>
-            <p>将在 <strong>{selectedProfile}</strong> Profile 中{actionText(draft.action)}：</p>
+            <h3 id="sb-dialog-title">{t('confirm', { action: t(draft.action) })}</h3>
+            <p>{t('dialogTargetBefore', { action: actionText(t, draft.action) })}<strong>{selectedProfile}</strong>{t('dialogTargetAfter', { action: actionText(t, draft.action) })}</p>
             <code>{draft.packageName}</code>
-            {selectedProfile === currentProfile && <p className="sb-restart-note">完成后 DSH 会自动重启，页面将短暂断开。</p>}
+            {selectedProfile === currentProfile && <p className="sb-restart-note">{t('restartNote')}</p>}
             <div className="sb-dialog-actions">
-              <button type="button" disabled={busy} onClick={() => { setDraft(undefined) }}>取消</button>
+              <button type="button" disabled={busy} onClick={() => { setDraft(undefined) }}>{t('cancel')}</button>
               <button className={draft.action === 'remove' ? 'sb-danger' : 'sb-primary'} type="button" disabled={busy} autoFocus onClick={() => { void submit() }}>
-                {busy ? '执行中…' : `确认${actionText(draft.action)}`}
+                {busy ? t('running') : t('confirm', { action: t(draft.action) })}
               </button>
             </div>
           </div>

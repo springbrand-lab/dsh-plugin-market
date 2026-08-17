@@ -1,0 +1,79 @@
+import type { Readable } from 'node:stream'
+import { pluginArguments, runPluginCommand, type PluginAction } from './command.ts'
+import { listProfiles, readProfileState, type ProfileState } from './profile.ts'
+import { restartCurrentProcess } from './restart.ts'
+
+/** Operations shared by the ordinary DSH and Desktop marketplace routes. */
+export interface MarketplaceManager {
+  readonly currentProfile: string
+  listProfiles(): Promise<ProfileState[]>
+  runPlugin(profile: string, action: PluginAction, packageName: string, signal: AbortSignal): Promise<void>
+  restart(delayMs: number): void | Promise<void>
+}
+
+/** Desktop profile facts consumed without importing the Desktop package at runtime. */
+export interface DesktopProfilesLike {
+  readonly current: { readonly name: string; readonly dir: string }
+  restart(): Promise<void>
+}
+
+interface DesktopPnpmOutcome {
+  readonly exitCode: number | null
+  readonly signal: NodeJS.Signals | null
+}
+
+interface DesktopPnpmHandleLike {
+  readonly stdout: Readable
+  readonly stderr: Readable
+  readonly done: Promise<DesktopPnpmOutcome>
+}
+
+/** Desktop package-manager operation consumed through its supported interface. */
+export interface DesktopPnpmLike {
+  runPlugin(args: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandleLike
+}
+
+/** Keep bounded process output for a useful operation failure. */
+function collectOutput(streams: readonly Readable[]): () => string {
+  let output = ''
+  const collect = (chunk: unknown): void => {
+    output = `${output}${String(chunk)}`.slice(-64_000)
+  }
+  for (const stream of streams) stream.on('data', collect)
+  return () => output.trim()
+}
+
+/** Use the running Desktop generation as the only profile and process owner. */
+export function desktopManager(
+  profiles: DesktopProfilesLike,
+  pnpm: DesktopPnpmLike,
+): MarketplaceManager {
+  const current = profiles.current
+  return {
+    currentProfile: current.name,
+    listProfiles: async () => [await readProfileState(current.name, current.dir)],
+    runPlugin: async (profile, action, packageName, signal) => {
+      if (profile !== current.name) {
+        throw new Error(`Desktop 只能修改当前 Profile：${current.name}`)
+      }
+      const operation = pnpm.runPlugin(pluginArguments(action, packageName), current.dir, signal)
+      const output = collectOutput([operation.stdout, operation.stderr])
+      const outcome = await operation.done
+      if (outcome.exitCode !== 0) {
+        throw new Error(output() || `dsh plugin 失败（${outcome.signal ?? String(outcome.exitCode)}）`)
+      }
+    },
+    restart: () => profiles.restart(),
+  }
+}
+
+/** Preserve the existing CLI implementation outside Desktop. */
+export function ordinaryManager(profile: string): MarketplaceManager {
+  return {
+    currentProfile: profile,
+    listProfiles: () => listProfiles(profile),
+    runPlugin: (target, action, packageName, signal) =>
+      runPluginCommand(target, action, packageName, signal),
+    restart: restartCurrentProcess,
+  }
+}

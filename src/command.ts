@@ -7,6 +7,15 @@ export interface Invocation {
   args: string[]
 }
 
+/** Convert one marketplace action into arguments accepted by `dsh plugin`. */
+export function pluginArguments(action: PluginAction, packageName: string): string[] {
+  return action === 'install'
+    ? ['add', packageName]
+    : action === 'update'
+      ? ['update', '--latest', '--config.minimumReleaseAge=0', packageName]
+      : ['remove', packageName]
+}
+
 /** Build the same Node CLI entry invocation used by the running DSH process. */
 export function buildInvocation(
   profile: string,
@@ -17,14 +26,9 @@ export function buildInvocation(
 ): Invocation {
   const entry = argv[1]
   if (entry === undefined) throw new Error('无法定位当前 DSH CLI 入口')
-  const operation = action === 'install'
-    ? ['add', packageName]
-    : action === 'update'
-      ? ['update', '--latest', '--config.minimumReleaseAge=0', packageName]
-      : ['remove', packageName]
   return {
     command: process.execPath,
-    args: [...execArgv, entry, 'plugin', '--profile', profile, ...operation],
+    args: [...execArgv, entry, 'plugin', '--profile', profile, ...pluginArguments(action, packageName)],
   }
 }
 
@@ -33,6 +37,7 @@ export async function runPluginCommand(
   profile: string,
   action: PluginAction,
   packageName: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   const invocation = buildInvocation(profile, action, packageName)
   await new Promise<void>((resolve, reject) => {
@@ -40,6 +45,7 @@ export async function runPluginCommand(
       cwd: process.cwd(),
       env: process.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(signal === undefined ? {} : { signal }),
     })
     let output = ''
     const collect = (chunk: Buffer): void => {

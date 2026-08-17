@@ -9,7 +9,7 @@
 [![npm](https://img.shields.io/npm/v/%40springbrand%2Fdsh-plugin-marketplace)](https://www.npmjs.com/package/@springbrand/dsh-plugin-marketplace)
 [![CI](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml/badge.svg)](https://github.com/springbrand-lab/dsh-plugin-market/actions/workflows/ci.yml)
 
-装在 DeepSeek Harness Web 设置页里的可视化插件市场。打开 **设置 → 插件市场**，即可浏览目录、搜索插件，并在不同 Profile 中安装、更新或卸载。
+装在 DeepSeek Harness Web 设置页、并随 SpringBrand Desktop 内置的可视化插件市场。打开 **设置 → 插件市场**，即可浏览目录、搜索插件，并安装、更新或卸载插件。
 
 ![DeepSeek Harness 插件市场](assets/plugin-marketplace.png)
 
@@ -61,7 +61,7 @@ dsh web
 ## 你会得到
 
 - **浏览与搜索**：按名称、作者、描述或 npm 包名搜索，并显示插件分类、仓库头像和紧凑的 GitHub Star 数。
-- **Profile 管理**：在 `web`、`headless` 或其他本地 Profile 间切换目标。
+- **Profile 管理**：普通 DSH 可以在 `web`、`headless` 或其他本地 Profile 间切换目标；SpringBrand Desktop 只允许操作当前激活的 Profile。
 - **一处完成安装、更新与卸载**：更新会立即解析最新发布版本；操作前显示目标 Profile 和 npm 包名，避免改错环境。
 - **已安装视图**：同时展示目录插件和 Profile 中已有、但目录未收录的依赖。
 - **明确的生效时机**：当前 Profile 变更后自动重启；其他 Profile 在下次启动时生效。
@@ -72,7 +72,7 @@ dsh web
 - 服务端会重新从目录解析 npm 包名，不接受浏览器提交任意安装源。
 - 更新与卸载只接受当前 Profile 中已安装的合法 npm 包名。
 - 所有变更接口只接受同源 JSON POST，请求体限制为 8 KiB。
-- DSH 指令通过参数数组直接启动，不经过 shell；同一时间只执行一个插件操作。
+- 普通 DSH 指令通过参数数组直接启动，不经过 shell；SpringBrand Desktop 会把操作交给自身受管的 package operation service。同一时间只执行一个插件操作。
 
 插件属于第三方代码。目录收录不代表安全背书，请只安装你信任的来源。
 
@@ -86,10 +86,12 @@ dsh web
       |
       +--> [dshplugin.market/plugins.json]
       |
-      +--> dsh plugin --profile <profile> add|update|remove <package>
+      +--> 普通 DSH：dsh plugin --profile <profile> add|update|remove <package>
+      |
+      +--> SpringBrand Desktop：针对当前 Profile 调用 desktopPnpm.runPlugin()
 ```
 
-市场默认操作当前运行的 Profile，也可以在页面中选择其他 Profile。第一版采用进程重启，不提供任意插件 Hot-mount 或无缝端口交接。
+在普通 DSH 中，市场默认操作当前运行的 Profile，也可以在页面中选择其他 Profile。SpringBrand Desktop 只暴露当前激活的 Profile，通过 `desktopPnpm` 执行 package operation，并通过 `desktopProfiles` 请求应用有序重启。该插件不提供任意 Hot-mount 或无缝端口交接。
 
 ## 配置
 
@@ -102,9 +104,9 @@ config:
   restartDelayMs: 1500
 ```
 
-- `profile`：当前 DSH 进程使用的 Profile；默认从启动参数读取。
+- `profile`：普通 DSH 进程使用的 Profile；默认从启动参数读取。SpringBrand Desktop 始终使用当前激活的 Profile。
 - `catalogUrl`：插件目录 JSON 地址，必须使用 HTTP 或 HTTPS。
-- `restartDelayMs`：当前 Profile 变更后的重启等待时间，范围为 500–30000 毫秒。
+- `restartDelayMs`：普通 DSH 进程的重启等待时间，范围为 500–30000 毫秒。SpringBrand Desktop 自行持有重启时序。
 
 ## 卸载
 

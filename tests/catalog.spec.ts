@@ -41,4 +41,22 @@ describe('plugin catalog', () => {
     expect(formatStars(12_345)).toBe('12.3k')
     expect(formatStars(106_863)).toBe('107k')
   })
+
+  it('keeps bilingual catalog descriptions for the active UI locale', () => {
+    const [plugin] = parseCatalog({ plugins: [{
+      name: 'Bundle',
+      owner: 'springbrand',
+      url: 'https://example.com/bundle',
+      description: { en: 'English summary', zh: '中文简介' },
+      entity_type: 'bundle',
+      npm: '@springbrand/bundle',
+      install_method: 'npm',
+      installability: 'installable',
+    }] })
+
+    expect(plugin).toMatchObject({
+      description: 'English summary',
+      descriptions: { en: 'English summary', zh: '中文简介' },
+    })
+  })
 })
