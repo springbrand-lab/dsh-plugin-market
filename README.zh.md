@@ -84,7 +84,7 @@ dsh web
       v
 [本插件的本地 HTTP 接口]
       |
-      +--> [dshplugin.market/plugins.json]
+      +--> [dshplugin.market/plugins.json?knownOnly=1]
       |
       +--> 普通 DSH：dsh plugin --profile <profile> add|update|remove <package>
       |
@@ -106,7 +106,7 @@ Profile 在初始化之前就会出现在列表中，因此可以在 `web` 会�
 ```yaml
 config:
   profile: web
-  catalogUrl: https://dshplugin.market/plugins.json
+  catalogUrl: https://dshplugin.market/plugins.json?knownOnly=1
   restartDelayMs: 1500
 ```
 

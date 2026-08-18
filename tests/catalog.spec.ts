@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatStars, isNpmPackageName, parseCatalog } from '../src/catalog.ts'
+import { DEFAULT_CATALOG_URL, formatStars, isNpmPackageName, parseCatalog } from '../src/catalog.ts'
 
 describe('plugin catalog', () => {
+  it('uses the server-filtered default catalog', () => {
+    expect(DEFAULT_CATALOG_URL).toBe('https://dshplugin.market/plugins.json?knownOnly=1')
+  })
+
   it('keeps real DSH entities but only enables audited npm bundles', () => {
     const plugins = parseCatalog({ plugins: [
       {

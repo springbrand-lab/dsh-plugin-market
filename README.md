@@ -84,7 +84,7 @@ Plugins are third-party code. Catalog inclusion is not a security endorsement; i
       v
 [Local HTTP API from this plugin]
       |
-      +--> [dshplugin.market/plugins.json]
+      +--> [dshplugin.market/plugins.json?knownOnly=1]
       |
       +--> ordinary DSH: dsh plugin --profile <profile> add|update|remove <package>
       |
@@ -106,7 +106,7 @@ Override these fields in the profile's Cordis configuration:
 ```yaml
 config:
   profile: web
-  catalogUrl: https://dshplugin.market/plugins.json
+  catalogUrl: https://dshplugin.market/plugins.json?knownOnly=1
   restartDelayMs: 1500
 ```
 
