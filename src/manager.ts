@@ -34,6 +34,7 @@ interface DesktopPnpmHandleLike {
 
 /** Desktop package-manager operation consumed through its supported interface. */
 export interface DesktopPnpmLike {
+  run(args: readonly string[], signal?: AbortSignal): DesktopPnpmHandleLike
   runPlugin(args: readonly string[], invokingDir: string, signal?: AbortSignal): DesktopPnpmHandleLike
 }
 
@@ -45,6 +46,15 @@ function collectOutput(streams: readonly Readable[]): () => string {
   }
   for (const stream of streams) stream.on('data', collect)
   return () => output.trim()
+}
+
+/** Keep the Desktop-owned marketplace row out of the profile bundle list. */
+function selfArguments(action: PluginAction, packageName: string, installed: boolean): string[] {
+  if (action === 'remove') return ['remove', '--config.minimumReleaseAge=0', packageName]
+  if (action === 'install' || !installed) {
+    return ['add', '--config.minimumReleaseAge=0', `${packageName}@latest`]
+  }
+  return pluginArguments('update', packageName)
 }
 
 /** Use the running Desktop generation as the only profile and process owner. */
@@ -63,20 +73,19 @@ export function desktopManager(
       if (profile !== current.name) {
         throw new Error(`Desktop can only modify its active profile: ${current.name}`)
       }
-      const firstSelfUpdate = action === 'update'
-        && packageName === MARKETPLACE_PACKAGE
-        && !Object.hasOwn((await readProfileState(current.name, current.dir)).dependencies, packageName)
-      const operation = pnpm.runPlugin(
-        firstSelfUpdate
-          ? ['add', '--config.minimumReleaseAge=0', `${packageName}@latest`]
-          : pluginArguments(action, packageName),
-        current.dir,
-        signal,
-      )
+      const selfPackage = packageName === MARKETPLACE_PACKAGE
+      const installed = selfPackage
+        && Object.hasOwn((await readProfileState(current.name, current.dir)).dependencies, packageName)
+      const args = selfPackage
+        ? selfArguments(action, packageName, installed)
+        : pluginArguments(action, packageName)
+      const operation = selfPackage
+        ? pnpm.run(args, signal)
+        : pnpm.runPlugin(args, current.dir, signal)
       const output = collectOutput([operation.stdout, operation.stderr])
       const outcome = await operation.done
       if (outcome.exitCode !== 0) {
-        throw new Error(output() || `dsh plugin failed (${outcome.signal ?? String(outcome.exitCode)})`)
+        throw new Error(output() || `package operation failed (${outcome.signal ?? String(outcome.exitCode)})`)
       }
     },
     restart: () => profiles.restart(),

@@ -1,6 +1,6 @@
 {
   "name": "@springbrand/dsh-plugin-marketplace",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A visual plugin marketplace for DeepSeek Harness profiles.",
   "type": "module",
   "main": "lib/index.js",

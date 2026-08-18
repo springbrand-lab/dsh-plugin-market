@@ -11,16 +11,18 @@ describe('Desktop marketplace manager', () => {
     try {
       writeFileSync(join(dir, 'package.json'), JSON.stringify({ dependencies: { '@springbrand/existing': '1.2.3' } }))
       const restart = vi.fn(async () => {})
-      const runPlugin = vi.fn(() => {
+      const operation = () => {
         const stdout = new PassThrough()
         const stderr = new PassThrough()
         stdout.end('installed')
         stderr.end()
         return { stdout, stderr, done: Promise.resolve({ exitCode: 0, signal: null }) }
-      })
+      }
+      const run = vi.fn(operation)
+      const runPlugin = vi.fn(operation)
       const manager = desktopManager(
         { current: { name: 'desktop', dir }, restart },
-        { runPlugin } as DesktopPnpmLike,
+        { run, runPlugin } as DesktopPnpmLike,
       )
       const signal = AbortSignal.timeout(1_000)
 
@@ -32,9 +34,8 @@ describe('Desktop marketplace manager', () => {
       await manager.runPlugin('desktop', 'install', '@springbrand/example', signal)
       expect(runPlugin).toHaveBeenCalledWith(['add', '@springbrand/example'], dir, signal)
       await manager.runPlugin('desktop', 'update', '@springbrand/dsh-plugin-marketplace', signal)
-      expect(runPlugin).toHaveBeenLastCalledWith(
+      expect(run).toHaveBeenLastCalledWith(
         ['add', '--config.minimumReleaseAge=0', '@springbrand/dsh-plugin-marketplace@latest'],
-        dir,
         signal,
       )
       writeFileSync(join(dir, 'package.json'), JSON.stringify({
@@ -44,12 +45,18 @@ describe('Desktop marketplace manager', () => {
         },
       }))
       await manager.runPlugin('desktop', 'update', '@springbrand/dsh-plugin-marketplace', signal)
-      expect(runPlugin).toHaveBeenLastCalledWith([
+      expect(run).toHaveBeenLastCalledWith([
         'update',
         '--latest',
         '--config.minimumReleaseAge=0',
         '@springbrand/dsh-plugin-marketplace',
-      ], dir, signal)
+      ], signal)
+      await manager.runPlugin('desktop', 'remove', '@springbrand/dsh-plugin-marketplace', signal)
+      expect(run).toHaveBeenLastCalledWith([
+        'remove',
+        '--config.minimumReleaseAge=0',
+        '@springbrand/dsh-plugin-marketplace',
+      ], signal)
       await expect(manager.runPlugin('web', 'remove', '@springbrand/example', signal))
         .rejects.toThrow('Desktop can only modify its active profile: desktop')
       await manager.restart(1_500)

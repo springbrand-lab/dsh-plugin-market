@@ -89,10 +89,12 @@ dsh web
       |
       +--> 普通 DSH：dsh plugin --profile <profile> add|update|remove <package>
       |
-      +--> SpringBrand Desktop：针对当前 Profile 调用 desktopPnpm.runPlugin()
+      +--> SpringBrand Desktop 插件：desktopPnpm.runPlugin()
+      |
+      +--> SpringBrand Desktop 市场覆盖：desktopPnpm.run()
 ```
 
-在普通 DSH 中，市场默认操作当前运行的 Profile，也可以在页面中选择其他 Profile。SpringBrand Desktop 只暴露当前激活的 Profile，通过 `desktopPnpm` 执行 package operation，并通过 `desktopProfiles` 请求应用有序重启。该插件不提供任意 Hot-mount 或无缝端口交接。
+在普通 DSH 中，市场默认操作当前运行的 Profile，也可以在页面中选择其他 Profile。SpringBrand Desktop 只暴露当前激活的 Profile，通过 `desktopPnpm` 执行 package operation，并通过 `desktopProfiles` 请求应用有序重启。第三方插件使用 `runPlugin()`，由 DSH reconcile 其 bundle layer；市场自身的 Profile 覆盖直接使用 `run()`，因为其 row 已归 Desktop 所有，再作为 bundle reconcile 会产生重复 row。该插件不提供任意 Hot-mount 或无缝端口交接。
 
 ### 哪些 Profile 会出现在目标列表里
 

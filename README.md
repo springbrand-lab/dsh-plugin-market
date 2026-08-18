@@ -89,10 +89,12 @@ Plugins are third-party code. Catalog inclusion is not a security endorsement; i
       |
       +--> ordinary DSH: dsh plugin --profile <profile> add|update|remove <package>
       |
-      +--> SpringBrand Desktop: desktopPnpm.runPlugin() for the active profile
+      +--> SpringBrand Desktop plugins: desktopPnpm.runPlugin()
+      |
+      +--> SpringBrand Desktop marketplace override: desktopPnpm.run()
 ```
 
-Under ordinary DSH, the marketplace targets the running profile by default and can select another profile in the UI. SpringBrand Desktop exposes only its active profile, runs package operations through `desktopPnpm`, and requests an orderly application restart through `desktopProfiles`. The plugin does not provide arbitrary hot-mounting or seamless port handoff.
+Under ordinary DSH, the marketplace targets the running profile by default and can select another profile in the UI. SpringBrand Desktop exposes only its active profile, runs package operations through `desktopPnpm`, and requests an orderly application restart through `desktopProfiles`. Third-party plugins use `runPlugin()` so DSH reconciles their bundle layers. The marketplace's own profile override uses direct `run()` because its row already belongs to Desktop; reconciling it as another bundle would duplicate that row. The plugin does not provide arbitrary hot-mounting or seamless port handoff.
 
 ### Which profiles appear as targets
 
