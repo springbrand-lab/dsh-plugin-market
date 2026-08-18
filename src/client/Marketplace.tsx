@@ -32,6 +32,7 @@ interface Plugin {
 interface Profile {
   name: string
   dependencies: Record<string, string>
+  bundledDependencies?: Record<string, string>
 }
 
 interface ProfilesResponse {
@@ -135,7 +136,8 @@ function installedOnlyRows(
 ): Plugin[] {
   if (profile === undefined) return []
   const byPackage = new Map(catalog.flatMap(plugin => plugin.packageName === undefined ? [] : [[plugin.packageName, plugin]]))
-  return Object.entries(profile.dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
+  const dependencies = { ...profile.bundledDependencies, ...profile.dependencies }
+  return Object.entries(dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
     id: `installed:${packageName}`,
     name: packageName,
     owner: t('profileDependency'),
@@ -211,7 +213,8 @@ export function Marketplace({ t }: { t: MarketplaceTranslate }) {
   }, [draft, busy])
 
   const selected = profiles.find(profile => profile.name === selectedProfile)
-  const installedNames = new Set(Object.keys(selected?.dependencies ?? {}))
+  const dependencies = { ...selected?.bundledDependencies, ...selected?.dependencies }
+  const installedNames = new Set(Object.keys(dependencies))
   const rows = installedOnly ? installedOnlyRows(selected, catalog, t) : catalog
   const types = [...new Set(rows.map(plugin => plugin.entityType))]
   const typeCounts = new Map<string, number>()
@@ -279,7 +282,7 @@ export function Marketplace({ t }: { t: MarketplaceTranslate }) {
       <div className="sb-toolbar">
         <div className="sb-tabs" role="tablist" aria-label={t('scope')}>
           <button type="button" role="tab" aria-selected={!installedOnly} onClick={() => { setInstalledOnly(false); setEntity('all') }}>{t('discover')}</button>
-          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true); setEntity('all') }}>{t('installed')} ({Object.keys(selected?.dependencies ?? {}).length})</button>
+          <button type="button" role="tab" aria-selected={installedOnly} onClick={() => { setInstalledOnly(true); setEntity('all') }}>{t('installed')} ({Object.keys(dependencies).length})</button>
         </div>
         <input
           type="search"
@@ -341,7 +344,9 @@ export function Marketplace({ t }: { t: MarketplaceTranslate }) {
                   {installed && plugin.packageName !== undefined ? (
                     <>
                       <button type="button" onClick={() => { setDraft({ action: 'update', packageName: plugin.packageName!, title: plugin.name }) }}>{t('update')}</button>
-                      <button className="sb-danger" type="button" onClick={() => { setDraft({ action: 'remove', packageName: plugin.packageName!, title: plugin.name }) }}>{t('remove')}</button>
+                      {Object.hasOwn(selected?.dependencies ?? {}, plugin.packageName) && (
+                        <button className="sb-danger" type="button" onClick={() => { setDraft({ action: 'remove', packageName: plugin.packageName!, title: plugin.name }) }}>{t('remove')}</button>
+                      )}
                     </>
                   ) : plugin.installable && plugin.packageName !== undefined ? (
                     <button className="sb-primary" type="button" onClick={() => { setDraft({ action: 'install', id: plugin.id, packageName: plugin.packageName!, title: plugin.name }) }}>{t('install')}</button>

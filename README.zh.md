@@ -64,6 +64,7 @@ dsh web
 - **Profile 管理**：普通 DSH 可以在 `web`、`headless` 或其他本地 Profile 间切换目标；SpringBrand Desktop 只允许操作当前激活的 Profile。
 - **一处完成安装、更新与卸载**：更新会立即解析最新发布版本；操作前显示目标 Profile 和 npm 包名，避免改错环境。
 - **已安装视图**：同时展示目录插件和 Profile 中已有、但目录未收录的依赖。
+- **SpringBrand Desktop 中的市场自更新**：把最新版本安装到当前 Profile；移除该 Profile 覆盖后会回退到应用内置版本。
 - **明确的生效时机**：当前 Profile 变更后自动重启；其他 Profile 在下次启动时生效。
 
 ## 安全
@@ -97,7 +98,7 @@ dsh web
 
 普通 DSH 下的列表是：`web`、`headless`、本进程启动时使用的 Profile，以及 `<DSH home>/profiles` 下的每个目录，按名称排序。DSH home 取 `DSH_HOME`，未设置时为 `~/.dsh`。`profiles/node_modules` 不会作为目标出现。
 
-Profile 在初始化之前就会出现在列表中，因此可以在 `web` 会话里直接把插件装进 `headless`，无需先创建该 Profile。**已安装**视图针对每个 Profile 读的是它自己的 `package.json` dependencies——这也是它会列出目录中没有、由本市场之外的途径安装的包的原因。
+Profile 在初始化之前就会出现在列表中，因此可以在 `web` 会话里直接把插件装进 `headless`，无需先创建该 Profile。**已安装**视图针对每个 Profile 读的是它自己的 `package.json` dependencies——这也是它会列出目录中没有、由本市场之外的途径安装的包的原因。SpringBrand Desktop 还会报告应用内置的市场版本；首次自更新会创建一个 Profile 依赖，并在重启后优先使用它。
 
 ## 配置
 

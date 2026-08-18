@@ -64,6 +64,7 @@ dsh web
 - **Profile management** across `web`, `headless`, and other local profiles under ordinary DSH; SpringBrand Desktop limits operations to its active profile.
 - **Install, update, and remove in one place**, with updates resolving the latest published version immediately and the target profile and npm package shown before each operation.
 - **Installed view** covering both catalog entries and profile dependencies that are not listed in the catalog.
+- **Marketplace self-updates in SpringBrand Desktop** by installing the latest release into the active profile; removing that profile override falls back to the version bundled with the app.
 - **Clear activation timing**: changes to the current profile restart DSH automatically; changes to other profiles apply on their next launch.
 
 ## Security
@@ -97,7 +98,7 @@ Under ordinary DSH, the marketplace targets the running profile by default and c
 
 Under ordinary DSH the profile list is `web`, `headless`, the profile this process was launched with, and every directory under `<DSH home>/profiles`, sorted by name. The DSH home is `DSH_HOME` when set, otherwise `~/.dsh`. `profiles/node_modules` is never offered as a target.
 
-A profile appears in the list before it has been initialized, so a plugin can be installed into `headless` from a `web` session without creating the profile first. What the **Installed** view reports for each profile is that profile's own `package.json` dependency map — which is why it also lists packages that were installed outside this marketplace and are absent from the catalog.
+A profile appears in the list before it has been initialized, so a plugin can be installed into `headless` from a `web` session without creating the profile first. What the **Installed** view reports for each profile is that profile's own `package.json` dependency map — which is why it also lists packages that were installed outside this marketplace and are absent from the catalog. SpringBrand Desktop also reports the marketplace version bundled with the app; its first self-update creates a profile dependency that takes precedence after restart.
 
 ## Configuration
 

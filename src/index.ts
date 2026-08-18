@@ -59,9 +59,13 @@ async function installedPackage(
   manager: MarketplaceManager,
   profile: string,
   packageName: string,
+  includeBundled: boolean,
 ): Promise<boolean> {
   const row = (await manager.listProfiles()).find(item => item.name === profile)
-  return row !== undefined && Object.hasOwn(row.dependencies, packageName)
+  return row !== undefined && (
+    Object.hasOwn(row.dependencies, packageName)
+    || (includeBundled && Object.hasOwn(row.bundledDependencies ?? {}, packageName))
+  )
 }
 
 async function resolvePackage(
@@ -108,7 +112,8 @@ async function mutate(
       )
     }
     const packageName = await resolvePackage(body, action, config)
-    if (action !== 'install' && !(await installedPackage(manager, profile, packageName))) {
+    if (action !== 'install'
+      && !(await installedPackage(manager, profile, packageName, action === 'update'))) {
       throw new HttpError(
         404,
         'error.notInstalled',

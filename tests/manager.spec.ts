@@ -27,9 +27,29 @@ describe('Desktop marketplace manager', () => {
       await expect(manager.listProfiles()).resolves.toEqual([{
         name: 'desktop',
         dependencies: { '@springbrand/existing': '1.2.3' },
+        bundledDependencies: { '@springbrand/dsh-plugin-marketplace': expect.any(String) },
       }])
       await manager.runPlugin('desktop', 'install', '@springbrand/example', signal)
       expect(runPlugin).toHaveBeenCalledWith(['add', '@springbrand/example'], dir, signal)
+      await manager.runPlugin('desktop', 'update', '@springbrand/dsh-plugin-marketplace', signal)
+      expect(runPlugin).toHaveBeenLastCalledWith(
+        ['add', '--config.minimumReleaseAge=0', '@springbrand/dsh-plugin-marketplace@latest'],
+        dir,
+        signal,
+      )
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        dependencies: {
+          '@springbrand/existing': '1.2.3',
+          '@springbrand/dsh-plugin-marketplace': '1.0.6',
+        },
+      }))
+      await manager.runPlugin('desktop', 'update', '@springbrand/dsh-plugin-marketplace', signal)
+      expect(runPlugin).toHaveBeenLastCalledWith([
+        'update',
+        '--latest',
+        '--config.minimumReleaseAge=0',
+        '@springbrand/dsh-plugin-marketplace',
+      ], dir, signal)
       await expect(manager.runPlugin('web', 'remove', '@springbrand/example', signal))
         .rejects.toThrow('Desktop can only modify its active profile: desktop')
       await manager.restart(1_500)

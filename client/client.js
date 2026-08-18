@@ -201,6 +201,147 @@ function formatStars(stars) {
 }
 
 //#endregion
+//#region src/client/locales.ts
+/** English marketplace copy (the key-set source of truth). */
+const en = {
+	locale: "en",
+	nav: "Plugin Marketplace",
+	title: "Plugin Marketplace",
+	intro: "Discover and manage DeepSeek Harness plugins",
+	targetProfile: "Target profile",
+	scope: "Catalog scope",
+	discover: "Discover",
+	installed: "Installed",
+	searchPlaceholder: "Search by name, author, or npm package",
+	searchAria: "Search plugins",
+	categories: "Plugin categories",
+	all: "All",
+	closeNotice: "Dismiss notice",
+	loading: "Loading plugin catalog…",
+	empty: "No matching plugins",
+	"entity.bundle": "Bundle",
+	"entity.skill": "Skill",
+	"entity.agentPreset": "Agent preset",
+	"entity.mcpServer": "MCP server",
+	"entity.cordisPlugin": "Cordis plugin",
+	"entity.installed": "Installed",
+	installScriptsTitle: "This package declares install scripts",
+	installScripts: "Install scripts",
+	stars: "{count} stars",
+	details: "Details",
+	install: "Install",
+	update: "Update",
+	remove: "Remove",
+	"action.install": "install",
+	"action.update": "update",
+	"action.remove": "remove",
+	displayOnly: "View only",
+	total: "{count} items",
+	previous: "Previous",
+	next: "Next",
+	perPage: "Per page",
+	confirm: "Confirm {action}",
+	dialogTargetBefore: "This will {action} the package in ",
+	dialogTargetAfter: " Profile:",
+	restartNote: "DSH will restart automatically when this finishes, so the page will disconnect briefly.",
+	cancel: "Cancel",
+	running: "Working…",
+	requestFailed: "Request failed (HTTP {status})",
+	restartTimeout: "DSH took too long to restart. Please restart it manually.",
+	profileDependency: "Profile dependency",
+	installedVersion: "Installed version {version}",
+	actionCompleted: "{title} {action} complete",
+	restarted: "{message}; DSH restarted",
+	restarting: "{message}; restarting DSH…",
+	nextStart: "{message}; takes effect the next time {profile} starts",
+	"error.methodNotAllowed": "This endpoint rejected the request method.",
+	"error.originMissing": "The request is missing the headers needed to prove it is same-origin.",
+	"error.crossSite": "Cross-site requests are rejected.",
+	"error.contentType": "The request body must be JSON.",
+	"error.bodyTooLarge": "The request body is too large.",
+	"error.badJson": "The request body is not valid JSON.",
+	"error.bodyNotObject": "The request body must be a JSON object.",
+	"error.fieldInvalid": "The {field} field is missing or invalid.",
+	"error.actionInvalid": "Unknown action.",
+	"error.profileInvalid": "Invalid profile name: {profile}.",
+	"error.notInstallable": "This catalog entry cannot be installed from npm.",
+	"error.packageNameInvalid": "Invalid npm package name.",
+	"error.notInstalled": "{packageName} is not installed in {profile}.",
+	"error.operationRunning": "Another plugin operation is already running.",
+	"error.restartPending": "The plugin operation has not finished yet."
+};
+/** Simplified Chinese marketplace copy. */
+const zh = {
+	locale: "zh",
+	nav: "插件市场",
+	title: "插件市场",
+	intro: "发现并管理 DeepSeek Harness 插件",
+	targetProfile: "目标 Profile",
+	scope: "目录范围",
+	discover: "发现",
+	installed: "已安装",
+	searchPlaceholder: "搜索名称、作者或 npm 包",
+	searchAria: "搜索插件",
+	categories: "插件分类",
+	all: "全部",
+	closeNotice: "关闭提示",
+	loading: "正在读取插件目录…",
+	empty: "没有匹配的插件",
+	"entity.bundle": "插件包",
+	"entity.skill": "技能",
+	"entity.agentPreset": "Agent 预设",
+	"entity.mcpServer": "MCP 服务",
+	"entity.cordisPlugin": "Cordis 插件",
+	"entity.installed": "已安装",
+	installScriptsTitle: "该包声明了安装脚本",
+	installScripts: "安装脚本",
+	stars: "{count} stars",
+	details: "详情",
+	install: "安装",
+	update: "更新",
+	remove: "卸载",
+	"action.install": "安装",
+	"action.update": "更新",
+	"action.remove": "卸载",
+	displayOnly: "仅展示",
+	total: "共 {count} 项",
+	previous: "上一页",
+	next: "下一页",
+	perPage: "每页",
+	confirm: "确认{action}",
+	dialogTargetBefore: "将在 ",
+	dialogTargetAfter: " Profile 中{action}：",
+	restartNote: "完成后 DSH 会自动重启，页面将短暂断开。",
+	cancel: "取消",
+	running: "执行中…",
+	requestFailed: "请求失败（HTTP {status}）",
+	restartTimeout: "DSH 重启超时，请手动重新启动。",
+	profileDependency: "Profile 依赖",
+	installedVersion: "已安装版本 {version}",
+	actionCompleted: "{title} {action}完成",
+	restarted: "{message}，DSH 已重启",
+	restarting: "{message}，正在重启 DSH…",
+	nextStart: "{message}；{profile} 下次启动时生效",
+	"error.methodNotAllowed": "该接口拒绝了此请求方法。",
+	"error.originMissing": "请求缺少证明同源所需的头部。",
+	"error.crossSite": "已拒绝跨站请求。",
+	"error.contentType": "请求体必须是 JSON。",
+	"error.bodyTooLarge": "请求体过大。",
+	"error.badJson": "请求体不是合法 JSON。",
+	"error.bodyNotObject": "请求体必须是 JSON 对象。",
+	"error.fieldInvalid": "{field} 字段缺失或无效。",
+	"error.actionInvalid": "未知操作。",
+	"error.profileInvalid": "无效的 Profile 名称：{profile}。",
+	"error.notInstallable": "该目录项无法通过 npm 安装。",
+	"error.packageNameInvalid": "npm 包名无效。",
+	"error.notInstalled": "{packageName} 未安装在 {profile}。",
+	"error.operationRunning": "已有另一个插件操作正在进行。",
+	"error.restartPending": "插件操作尚未完成。"
+};
+/** Locale namespace owned by the marketplace. */
+const NS = "settings.pluginMarketplace";
+
+//#endregion
 //#region src/client/Marketplace.tsx
 const API = "/springbrand-market";
 const OPERATION_KEY = "springbrand-market:last-operation";
@@ -226,6 +367,18 @@ function entityLabel(t, entity) {
 	const key = ENTITY_KEYS[entity];
 	return key === void 0 ? entity : t(key);
 }
+/**
+* Render a failure in the UI language. The host sends a locale key for every
+* failure it raises; its `error` text is English for the DSH log and is only
+* shown when an unexpected throw arrives with no key to translate.
+*/
+function failureText(t, status, value) {
+	if (typeof value.code === "string" && Object.hasOwn(en, value.code)) {
+		const params = typeof value.params === "object" && value.params !== null ? value.params : void 0;
+		return t(value.code, params);
+	}
+	return typeof value.error === "string" ? value.error : t("requestFailed", { status });
+}
 async function json(t, path, init) {
 	const response = await fetch(`${API}${path}`, {
 		...init,
@@ -233,7 +386,7 @@ async function json(t, path, init) {
 		cache: "no-store"
 	});
 	const value = await response.json();
-	if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : t("requestFailed", { status: response.status }));
+	if (!response.ok) throw new Error(failureText(t, response.status, value));
 	return value;
 }
 function actionText(t, action) {
@@ -259,7 +412,11 @@ async function reloadAfterRestart(t) {
 function installedOnlyRows(profile, catalog, t) {
 	if (profile === void 0) return [];
 	const byPackage = new Map(catalog.flatMap((plugin) => plugin.packageName === void 0 ? [] : [[plugin.packageName, plugin]]));
-	return Object.entries(profile.dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
+	const dependencies = {
+		...profile.bundledDependencies,
+		...profile.dependencies
+	};
+	return Object.entries(dependencies).map(([packageName, version]) => byPackage.get(packageName) ?? {
 		id: `installed:${packageName}`,
 		name: packageName,
 		owner: t("profileDependency"),
@@ -334,7 +491,11 @@ function Marketplace({ t }) {
 		};
 	}, [draft, busy]);
 	const selected = profiles.find((profile) => profile.name === selectedProfile);
-	const installedNames = new Set(Object.keys(selected?.dependencies ?? {}));
+	const dependencies = {
+		...selected?.bundledDependencies,
+		...selected?.dependencies
+	};
+	const installedNames = new Set(Object.keys(dependencies));
 	const rows = installedOnly ? installedOnlyRows(selected, catalog, t) : catalog;
 	const types = [...new Set(rows.map((plugin) => plugin.entityType))];
 	const typeCounts = /* @__PURE__ */ new Map();
@@ -434,7 +595,7 @@ function Marketplace({ t }) {
 						children: [
 							t("installed"),
 							" (",
-							Object.keys(selected?.dependencies ?? {}).length,
+							Object.keys(dependencies).length,
 							")"
 						]
 					})]
@@ -567,7 +728,7 @@ function Marketplace({ t }) {
 										});
 									},
 									children: t("update")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								}), Object.hasOwn(selected?.dependencies ?? {}, plugin.packageName) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									className: "sb-danger",
 									type: "button",
 									onClick: () => {
@@ -725,117 +886,6 @@ const MARKET_STYLE = `
 .sb-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.58);padding:20px}.sb-dialog{width:min(420px,100%);border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:14px;background:#29292c;color:#f2f2f3;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}.sb-dialog h3{margin:0 0 12px}.sb-dialog p{font-size:13px;opacity:.75}.sb-dialog>code{display:block;border-radius:8px;background:rgba(255,255,255,.07);padding:10px;overflow-wrap:anywhere}.sb-dialog .sb-restart-note{color:#f5b82e}.sb-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.sb-dialog-actions button:disabled{opacity:.55;cursor:wait}
 @media(max-width:700px){.sb-market{height:calc(100vh - 170px)}.sb-head{align-items:stretch;flex-direction:column}.sb-profile{justify-content:space-between}.sb-toolbar{grid-template-columns:1fr}.sb-tabs{grid-column:1/-1}.sb-toolbar input{width:100%}.sb-results{grid-template-columns:1fr}.sb-card{min-height:196px}.sb-card footer{align-items:stretch;flex-direction:column}.sb-actions{justify-content:flex-end}.sb-pager{grid-template-columns:1fr auto}.sb-pager>span{display:none}.sb-pager>label{justify-self:end}}
 `;
-
-//#endregion
-//#region src/client/locales.ts
-/** English marketplace copy (the key-set source of truth). */
-const en = {
-	locale: "en",
-	nav: "Plugin Marketplace",
-	title: "Plugin Marketplace",
-	intro: "Discover and manage DeepSeek Harness plugins",
-	targetProfile: "Target profile",
-	scope: "Catalog scope",
-	discover: "Discover",
-	installed: "Installed",
-	searchPlaceholder: "Search by name, author, or npm package",
-	searchAria: "Search plugins",
-	categories: "Plugin categories",
-	all: "All",
-	closeNotice: "Dismiss notice",
-	loading: "Loading plugin catalog…",
-	empty: "No matching plugins",
-	"entity.bundle": "Bundle",
-	"entity.skill": "Skill",
-	"entity.agentPreset": "Agent preset",
-	"entity.mcpServer": "MCP server",
-	"entity.cordisPlugin": "Cordis plugin",
-	"entity.installed": "Installed",
-	installScriptsTitle: "This package declares install scripts",
-	installScripts: "Install scripts",
-	stars: "{count} stars",
-	details: "Details",
-	install: "Install",
-	update: "Update",
-	remove: "Remove",
-	"action.install": "install",
-	"action.update": "update",
-	"action.remove": "remove",
-	displayOnly: "View only",
-	total: "{count} items",
-	previous: "Previous",
-	next: "Next",
-	perPage: "Per page",
-	confirm: "Confirm {action}",
-	dialogTargetBefore: "This will {action} the package in ",
-	dialogTargetAfter: " Profile:",
-	restartNote: "DSH will restart automatically when this finishes, so the page will disconnect briefly.",
-	cancel: "Cancel",
-	running: "Working…",
-	requestFailed: "Request failed (HTTP {status})",
-	restartTimeout: "DSH took too long to restart. Please restart it manually.",
-	profileDependency: "Profile dependency",
-	installedVersion: "Installed version {version}",
-	actionCompleted: "{title} {action} complete",
-	restarted: "{message}; DSH restarted",
-	restarting: "{message}; restarting DSH…",
-	nextStart: "{message}; takes effect the next time {profile} starts"
-};
-/** Simplified Chinese marketplace copy. */
-const zh = {
-	locale: "zh",
-	nav: "插件市场",
-	title: "插件市场",
-	intro: "发现并管理 DeepSeek Harness 插件",
-	targetProfile: "目标 Profile",
-	scope: "目录范围",
-	discover: "发现",
-	installed: "已安装",
-	searchPlaceholder: "搜索名称、作者或 npm 包",
-	searchAria: "搜索插件",
-	categories: "插件分类",
-	all: "全部",
-	closeNotice: "关闭提示",
-	loading: "正在读取插件目录…",
-	empty: "没有匹配的插件",
-	"entity.bundle": "插件包",
-	"entity.skill": "技能",
-	"entity.agentPreset": "Agent 预设",
-	"entity.mcpServer": "MCP 服务",
-	"entity.cordisPlugin": "Cordis 插件",
-	"entity.installed": "已安装",
-	installScriptsTitle: "该包声明了安装脚本",
-	installScripts: "安装脚本",
-	stars: "{count} stars",
-	details: "详情",
-	install: "安装",
-	update: "更新",
-	remove: "卸载",
-	"action.install": "安装",
-	"action.update": "更新",
-	"action.remove": "卸载",
-	displayOnly: "仅展示",
-	total: "共 {count} 项",
-	previous: "上一页",
-	next: "下一页",
-	perPage: "每页",
-	confirm: "确认{action}",
-	dialogTargetBefore: "将在 ",
-	dialogTargetAfter: " Profile 中{action}：",
-	restartNote: "完成后 DSH 会自动重启，页面将短暂断开。",
-	cancel: "取消",
-	running: "执行中…",
-	requestFailed: "请求失败（HTTP {status}）",
-	restartTimeout: "DSH 重启超时，请手动重新启动。",
-	profileDependency: "Profile 依赖",
-	installedVersion: "已安装版本 {version}",
-	actionCompleted: "{title} {action}完成",
-	restarted: "{message}，DSH 已重启",
-	restarting: "{message}，正在重启 DSH…",
-	nextStart: "{message}；{profile} 下次启动时生效"
-};
-/** Locale namespace owned by the marketplace. */
-const NS = "settings.pluginMarketplace";
 
 //#endregion
 //#region src/client/index.ts

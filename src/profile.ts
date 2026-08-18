@@ -5,6 +5,8 @@ import { resolve } from 'node:path'
 export interface ProfileState {
   name: string
   dependencies: Record<string, string>
+  /** App-owned packages that can be updated through a profile override. */
+  bundledDependencies?: Record<string, string>
 }
 
 /** Resolve the DSH home using the launcher precedence relevant to plugins. */

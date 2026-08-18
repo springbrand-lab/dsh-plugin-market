@@ -1,7 +1,11 @@
+import { createRequire } from 'node:module'
 import type { Readable } from 'node:stream'
 import { pluginArguments, runPluginCommand, type PluginAction } from './command.ts'
 import { listProfiles, readProfileState, type ProfileState } from './profile.ts'
 import { restartCurrentProcess } from './restart.ts'
+
+const MARKETPLACE_PACKAGE = '@springbrand/dsh-plugin-marketplace'
+const MARKETPLACE_VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version
 
 /** Operations shared by the ordinary DSH and Desktop marketplace routes. */
 export interface MarketplaceManager {
@@ -51,12 +55,24 @@ export function desktopManager(
   const current = profiles.current
   return {
     currentProfile: current.name,
-    listProfiles: async () => [await readProfileState(current.name, current.dir)],
+    listProfiles: async () => [{
+      ...await readProfileState(current.name, current.dir),
+      bundledDependencies: { [MARKETPLACE_PACKAGE]: MARKETPLACE_VERSION },
+    }],
     runPlugin: async (profile, action, packageName, signal) => {
       if (profile !== current.name) {
         throw new Error(`Desktop can only modify its active profile: ${current.name}`)
       }
-      const operation = pnpm.runPlugin(pluginArguments(action, packageName), current.dir, signal)
+      const firstSelfUpdate = action === 'update'
+        && packageName === MARKETPLACE_PACKAGE
+        && !Object.hasOwn((await readProfileState(current.name, current.dir)).dependencies, packageName)
+      const operation = pnpm.runPlugin(
+        firstSelfUpdate
+          ? ['add', '--config.minimumReleaseAge=0', `${packageName}@latest`]
+          : pluginArguments(action, packageName),
+        current.dir,
+        signal,
+      )
       const output = collectOutput([operation.stdout, operation.stderr])
       const outcome = await operation.done
       if (outcome.exitCode !== 0) {
