@@ -199,6 +199,10 @@ function formatStars(stars) {
 	const thousands = stars / 1e3;
 	return `${thousands < 100 ? Number(thousands.toFixed(1)) : Math.round(thousands)}k`;
 }
+/** Whether npm latest differs from the exact installed package version. */
+function hasUpdate(current, latest) {
+	return current !== void 0 && latest !== void 0 && current !== latest;
+}
 
 //#endregion
 //#region src/client/locales.ts
@@ -207,11 +211,13 @@ const en = {
 	locale: "en",
 	nav: "Plugin Marketplace",
 	title: "Plugin Marketplace",
+	marketplaceVersion: "Marketplace version {version}",
 	intro: "Discover and manage DeepSeek Harness plugins",
 	targetProfile: "Target profile",
 	scope: "Catalog scope",
 	discover: "Discover",
 	installed: "Installed",
+	updatesCount: "{count} updates",
 	searchPlaceholder: "Search by name, author, or npm package",
 	searchAria: "Search plugins",
 	categories: "Plugin categories",
@@ -231,6 +237,9 @@ const en = {
 	details: "Details",
 	install: "Install",
 	update: "Update",
+	updateAvailable: "Update available",
+	updateTo: "Update to v{version}",
+	upToDate: "Up to date",
 	remove: "Remove",
 	"action.install": "install",
 	"action.update": "update",
@@ -249,7 +258,7 @@ const en = {
 	requestFailed: "Request failed (HTTP {status})",
 	restartTimeout: "DSH took too long to restart. Please restart it manually.",
 	profileDependency: "Profile dependency",
-	installedVersion: "Installed version {version}",
+	dependencySource: "Dependency source {source}",
 	actionCompleted: "{title} {action} complete",
 	restarted: "{message}; DSH restarted",
 	restarting: "{message}; restarting DSH…",
@@ -275,11 +284,13 @@ const zh = {
 	locale: "zh",
 	nav: "插件市场",
 	title: "插件市场",
+	marketplaceVersion: "插件市场版本 {version}",
 	intro: "发现并管理 DeepSeek Harness 插件",
 	targetProfile: "目标 Profile",
 	scope: "目录范围",
 	discover: "发现",
 	installed: "已安装",
+	updatesCount: "{count} 个可更新",
 	searchPlaceholder: "搜索名称、作者或 npm 包",
 	searchAria: "搜索插件",
 	categories: "插件分类",
@@ -299,6 +310,9 @@ const zh = {
 	details: "详情",
 	install: "安装",
 	update: "更新",
+	updateAvailable: "有更新",
+	updateTo: "更新到 v{version}",
+	upToDate: "已是最新",
 	remove: "卸载",
 	"action.install": "安装",
 	"action.update": "更新",
@@ -317,7 +331,7 @@ const zh = {
 	requestFailed: "请求失败（HTTP {status}）",
 	restartTimeout: "DSH 重启超时，请手动重新启动。",
 	profileDependency: "Profile 依赖",
-	installedVersion: "已安装版本 {version}",
+	dependencySource: "依赖来源 {source}",
 	actionCompleted: "{title} {action}完成",
 	restarted: "{message}，DSH 已重启",
 	restarting: "{message}，正在重启 DSH…",
@@ -344,6 +358,7 @@ const NS = "settings.pluginMarketplace";
 //#endregion
 //#region src/client/Marketplace.tsx
 const API = "/springbrand-market";
+const MARKETPLACE_PACKAGE = "@springbrand/dsh-plugin-marketplace";
 const OPERATION_KEY = "springbrand-market:last-operation";
 const PAGE_SIZES = [
 	24,
@@ -389,6 +404,15 @@ async function json(t, path, init) {
 	if (!response.ok) throw new Error(failureText(t, response.status, value));
 	return value;
 }
+async function npmLatestVersion(packageName, signal) {
+	const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`, {
+		headers: { accept: "application/json" },
+		signal
+	});
+	if (!response.ok) return void 0;
+	const value = await response.json();
+	return typeof value.version === "string" && value.version !== "" ? value.version : void 0;
+}
 function actionText(t, action) {
 	return t(ACTION_KEYS[action]);
 }
@@ -421,7 +445,7 @@ function installedOnlyRows(profile, catalog, t) {
 		name: packageName,
 		owner: t("profileDependency"),
 		url: "",
-		description: t("installedVersion", { version }),
+		description: t("dependencySource", { source: version }),
 		category: "installed",
 		entityType: "installed",
 		stars: 0,
@@ -449,6 +473,7 @@ function Marketplace({ t }) {
 	const [loading, setLoading] = (0, react.useState)(true);
 	const [status, setStatus] = (0, react.useState)("");
 	const [error, setError] = (0, react.useState)("");
+	const [latestVersions, setLatestVersions] = (0, react.useState)({});
 	const locale = t("locale");
 	const loadProfiles = async () => {
 		const value = await json(t, "/profiles");
@@ -481,6 +506,31 @@ function Marketplace({ t }) {
 		pageSize
 	]);
 	(0, react.useEffect)(() => {
+		const profile = profiles.find((item) => item.name === selectedProfile);
+		if (profile === void 0) {
+			setLatestVersions({});
+			return;
+		}
+		const installed = new Set(Object.keys({
+			...profile.bundledDependencies,
+			...profile.dependencies
+		}));
+		const packageNames = [...new Set(catalog.flatMap((plugin) => plugin.installable && plugin.packageName !== void 0 && installed.has(plugin.packageName) ? [plugin.packageName] : []))];
+		const controller = new AbortController();
+		const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(8e3)]);
+		setLatestVersions({});
+		Promise.all(packageNames.map(async (packageName) => [packageName, await npmLatestVersion(packageName, signal).catch(() => void 0)])).then((rows$1) => {
+			if (!controller.signal.aborted) setLatestVersions(Object.fromEntries(rows$1.filter((row) => row[1] !== void 0)));
+		});
+		return () => {
+			controller.abort();
+		};
+	}, [
+		catalog,
+		profiles,
+		selectedProfile
+	]);
+	(0, react.useEffect)(() => {
 		if (draft === void 0) return;
 		const close = (event) => {
 			if (event.key === "Escape" && !busy) setDraft(void 0);
@@ -491,11 +541,18 @@ function Marketplace({ t }) {
 		};
 	}, [draft, busy]);
 	const selected = profiles.find((profile) => profile.name === selectedProfile);
+	const activeProfile = profiles.find((profile) => profile.name === currentProfile);
+	const marketplaceVersion = activeProfile?.versions?.[MARKETPLACE_PACKAGE] ?? activeProfile?.bundledDependencies?.[MARKETPLACE_PACKAGE];
 	const dependencies = {
 		...selected?.bundledDependencies,
 		...selected?.dependencies
 	};
+	const currentVersions = {
+		...selected?.bundledDependencies,
+		...selected?.versions
+	};
 	const installedNames = new Set(Object.keys(dependencies));
+	const updateCount = catalog.filter((plugin) => plugin.packageName !== void 0 && installedNames.has(plugin.packageName) && hasUpdate(currentVersions[plugin.packageName], latestVersions[plugin.packageName])).length;
 	const rows = installedOnly ? installedOnlyRows(selected, catalog, t) : catalog;
 	const types = [...new Set(rows.map((plugin) => plugin.entityType))];
 	const typeCounts = /* @__PURE__ */ new Map();
@@ -554,7 +611,14 @@ function Marketplace({ t }) {
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("style", { children: MARKET_STYLE }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("header", {
 				className: "sb-head",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", { children: t("title") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("intro") })] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "sb-title",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", { children: t("title") }), marketplaceVersion !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+						className: "sb-market-version",
+						title: t("marketplaceVersion", { version: marketplaceVersion }),
+						children: ["v", marketplaceVersion]
+					})]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("intro") })] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 					className: "sb-profile",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("targetProfile") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 						className: "sb-select-wrap",
@@ -596,7 +660,11 @@ function Marketplace({ t }) {
 							t("installed"),
 							" (",
 							Object.keys(dependencies).length,
-							")"
+							")",
+							updateCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "sb-tab-update",
+								children: t("updatesCount", { count: updateCount })
+							})
 						]
 					})]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
@@ -659,6 +727,9 @@ function Marketplace({ t }) {
 					children: t("empty")
 				}) : visible.map((plugin) => {
 					const installed = plugin.packageName !== void 0 && installedNames.has(plugin.packageName);
+					const currentVersion = plugin.packageName === void 0 ? void 0 : currentVersions[plugin.packageName];
+					const latestVersion = plugin.packageName === void 0 ? void 0 : latestVersions[plugin.packageName];
+					const updateAvailable = hasUpdate(currentVersion, latestVersion);
 					return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("article", {
 						className: "sb-card",
 						children: [
@@ -696,12 +767,20 @@ function Marketplace({ t }) {
 										className: "sb-kind",
 										children: entityLabel(t, plugin.entityType)
 									}),
+									currentVersion !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: "sb-version",
+										children: ["v", currentVersion]
+									}),
+									updateAvailable && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "sb-update",
+										children: t("updateAvailable")
+									}),
 									plugin.runsInstallScripts && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 										className: "sb-warning",
 										title: t("installScriptsTitle"),
 										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(TriangleAlert, { "aria-hidden": "true" }), t("installScripts")]
 									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									plugin.stars > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 										className: "sb-stars",
 										"aria-label": t("stars", { count: plugin.stars }),
 										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Star, { "aria-hidden": "true" }), formatStars(plugin.stars)]
@@ -718,7 +797,11 @@ function Marketplace({ t }) {
 									target: "_blank",
 									rel: "noreferrer",
 									children: t("details")
-								}), installed && plugin.packageName !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								}), installed && plugin.packageName !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [currentVersion !== void 0 && latestVersion === currentVersion ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "sb-muted",
+									children: t("upToDate")
+								}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									className: updateAvailable ? "sb-primary" : void 0,
 									type: "button",
 									onClick: () => {
 										setDraft({
@@ -727,7 +810,7 @@ function Marketplace({ t }) {
 											title: plugin.name
 										});
 									},
-									children: t("update")
+									children: updateAvailable ? t("updateTo", { version: latestVersion }) : t("update")
 								}), Object.hasOwn(selected?.dependencies ?? {}, plugin.packageName) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 									className: "sb-danger",
 									type: "button",
@@ -852,38 +935,38 @@ const MARKET_STYLE = `
 .sb-market{box-sizing:border-box;height:100%;min-height:500px;display:flex;flex-direction:column;gap:12px;color:inherit;overflow:hidden}
 .sb-market *{box-sizing:border-box}
 .sb-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-.sb-head h2{font-size:20px;margin:0 0 4px}.sb-head p{margin:0;opacity:.62;font-size:13px}
+.sb-title{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}.sb-head h2{font-size:20px;margin:0}.sb-market-version{font-size:11px;font-weight:650;opacity:.48;font-variant-numeric:tabular-nums}.sb-head p{margin:0;opacity:.62;font-size:13px}
 .sb-profile{display:flex;align-items:center;gap:9px;font-size:12px;white-space:nowrap}.sb-profile>span:first-child{opacity:.66}
 .sb-market select,.sb-market input,.sb-market button,.sb-market a{font:inherit}
-.sb-market select,.sb-market input{height:34px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:color-mix(in srgb,currentColor 5%,transparent);color:inherit;padding:0 10px}
-.sb-select-wrap{position:relative;display:block}.sb-profile select{width:108px;appearance:none;border-radius:9px;background:color-mix(in srgb,currentColor 7%,transparent);padding:0 32px 0 12px;cursor:pointer}.sb-profile select:hover{border-color:color-mix(in srgb,currentColor 30%,transparent);background:color-mix(in srgb,currentColor 10%,transparent)}.sb-profile select:focus-visible{outline:2px solid #5b8cff;outline-offset:2px;border-color:transparent}.sb-profile option{background:#2d2d30;color:#f2f2f3}.sb-select-wrap svg{position:absolute;right:10px;top:50%;width:14px;height:14px;transform:translateY(-50%);pointer-events:none;opacity:.62}
+.sb-market select,.sb-market input{height:36px;border:0;border-radius:11px;background:color-mix(in srgb,currentColor 7%,transparent);color:inherit;padding:0 12px}
+.sb-market :is(button,a,input,select):focus-visible{outline:2px solid #6f8cff;outline-offset:2px}.sb-select-wrap{position:relative;display:block}.sb-profile select{width:108px;appearance:none;padding:0 32px 0 12px;cursor:pointer}.sb-profile select:hover{background:color-mix(in srgb,currentColor 11%,transparent)}.sb-profile option{background:#2d2d30;color:#f2f2f3}.sb-select-wrap svg{position:absolute;right:10px;top:50%;width:14px;height:14px;transform:translateY(-50%);pointer-events:none;opacity:.62}
 .sb-toolbar{display:grid;grid-template-columns:auto minmax(180px,1fr);gap:10px;align-items:center}
-.sb-tabs{display:flex;gap:4px}
-.sb-tabs button,.sb-pager button,.sb-actions button,.sb-actions a,.sb-dialog-actions button{border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:8px;background:transparent;color:inherit;padding:7px 11px;text-decoration:none;cursor:pointer}
-.sb-tabs button[aria-selected=true]{background:color-mix(in srgb,#5b8cff 24%,transparent);border-color:#5b8cff;color:inherit}
-.sb-categories{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:0 1px 2px;scrollbar-width:none}.sb-categories::-webkit-scrollbar{display:none}.sb-categories button{height:28px;flex:none;border:1px solid transparent;border-radius:999px;background:transparent;color:inherit;padding:0 10px;font-size:12px;opacity:.66;cursor:pointer}.sb-categories button:hover{opacity:1;background:color-mix(in srgb,currentColor 5%,transparent)}.sb-categories button[aria-pressed=true]{border-color:color-mix(in srgb,currentColor 24%,transparent);background:color-mix(in srgb,currentColor 8%,transparent);opacity:1}.sb-categories span{margin-left:3px;font-size:10px;opacity:.56;font-variant-numeric:tabular-nums}
-.sb-notice{display:flex;justify-content:space-between;gap:12px;border:1px solid color-mix(in srgb,#4ea871 55%,transparent);background:color-mix(in srgb,#4ea871 12%,transparent);border-radius:8px;padding:8px 10px;font-size:13px}
-.sb-notice button{border:0;background:none;color:inherit;cursor:pointer}.sb-error{border-color:#d85d5d;background:color-mix(in srgb,#d85d5d 12%,transparent)}
-.sb-results{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:12px;padding:2px 5px 4px 2px}
-.sb-card{min-height:208px;display:flex;flex-direction:column;border:1px solid color-mix(in srgb,currentColor 16%,transparent);border-radius:9px;padding:14px;background:color-mix(in srgb,currentColor 3%,transparent);transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}
-.sb-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,#5b8cff 42%,transparent);box-shadow:0 8px 22px color-mix(in srgb,#5b8cff 8%,transparent)}
+.sb-tabs{display:flex;gap:18px}
+.sb-tabs button{border:0;border-radius:0;background:transparent;color:inherit;padding:6px 0;text-decoration:none;opacity:.58;cursor:pointer}.sb-tabs button:hover{opacity:1}.sb-tabs button[aria-selected=true]{background:transparent;color:#91a8ff;box-shadow:inset 0 -2px currentColor;font-weight:650;opacity:1}.sb-tab-update{margin-left:7px;font-size:11px;font-weight:650}
+.sb-categories{display:flex;align-items:center;gap:14px;overflow-x:auto;padding:0 1px 2px;scrollbar-width:none}.sb-categories::-webkit-scrollbar{display:none}.sb-categories button{height:28px;flex:none;border:0;background:transparent;color:inherit;padding:0;font-size:12px;opacity:.5;cursor:pointer}.sb-categories button:hover{opacity:.82}.sb-categories button[aria-pressed=true]{color:#91a8ff;font-weight:650;opacity:1}.sb-categories span{margin-left:3px;font-size:10px;opacity:.56;font-variant-numeric:tabular-nums}
+.sb-notice{display:flex;justify-content:space-between;gap:12px;border:0;background:color-mix(in srgb,#4ea871 12%,transparent);border-radius:11px;padding:9px 12px;font-size:13px}
+.sb-notice button{border:0;background:none;color:inherit;cursor:pointer}.sb-error{background:color-mix(in srgb,#d85d5d 12%,transparent)}
+.sb-results{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:4px;padding:2px 5px 4px 2px}
+.sb-card{min-height:198px;display:flex;flex-direction:column;border:0;border-radius:11px;padding:14px 8px;background:transparent;transition:background .16s ease}
+.sb-card:hover{background:color-mix(in srgb,currentColor 4%,transparent)}
 .sb-card-title{display:flex;align-items:flex-start;gap:11px;min-width:0}
-.sb-icon{position:relative;width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:9px;background:color-mix(in srgb,currentColor 6%,transparent);font-size:17px;font-weight:700;opacity:.9}
+.sb-icon{position:relative;width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border:0;border-radius:12px;background:color-mix(in srgb,currentColor 8%,transparent);font-size:17px;font-weight:700;opacity:.9}
 .sb-icon>svg{width:21px;height:21px;opacity:.58}.sb-icon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .sb-heading{min-width:0;padding-top:2px}.sb-card h3{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;line-height:1.35;margin:0 0 4px}.sb-card-title p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;margin:0;opacity:.58}
 .sb-description{min-height:39px;font-size:13px;line-height:1.5;opacity:.7;margin:12px 0 10px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .sb-card-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:auto;min-height:23px}
-.sb-kind,.sb-warning{display:inline-flex;align-items:center;gap:4px;height:22px;border-radius:6px;padding:0 7px;white-space:nowrap;font-size:11px;font-weight:600}
-.sb-kind{background:color-mix(in srgb,#5b8cff 12%,transparent);color:color-mix(in srgb,#7fa3ff 85%,currentColor)}
-.sb-warning{background:color-mix(in srgb,#f5b82e 11%,transparent);color:#e8a91c}.sb-warning svg{width:13px;height:13px}
+.sb-kind,.sb-warning,.sb-update{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:11px;font-weight:600}
+.sb-kind{color:color-mix(in srgb,#7fa3ff 85%,currentColor)}
+.sb-warning{color:#e8a91c}.sb-warning svg{width:13px;height:13px}
+.sb-version{font-size:11px;font-weight:650;opacity:.48;font-variant-numeric:tabular-nums}.sb-update{color:#6fc58d}.sb-update::before{width:5px;height:5px;border-radius:50%;background:currentColor;content:""}
 .sb-stars{display:inline-flex;align-items:center;gap:4px;margin-left:auto;color:#f5b82e;font-size:12px;font-weight:650;font-variant-numeric:tabular-nums}.sb-stars svg{width:14px;height:14px;fill:currentColor}
-.sb-card footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:11px;padding-top:10px;border-top:1px solid color-mix(in srgb,currentColor 10%,transparent)}
+.sb-card footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding-top:4px;border:0}
 .sb-meta{min-width:0;display:flex;align-items:center;gap:7px;font-size:11px;opacity:.58}.sb-meta code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px}
 .sb-meta code,.sb-dialog code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.sb-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.sb-actions button,.sb-actions a{font-size:12px;padding:5px 9px}.sb-actions .sb-primary,.sb-dialog-actions .sb-primary{background:#4f7fe8;border-color:#4f7fe8;color:#fff}.sb-actions .sb-danger,.sb-dialog-actions .sb-danger{border-color:#cf6262;color:#ed8585}
+.sb-actions{display:flex;align-items:center;gap:9px;white-space:nowrap}.sb-actions button,.sb-actions a{border:0;background:transparent;color:inherit;font-size:12px;padding:5px 2px;text-decoration:none;opacity:.62;cursor:pointer}.sb-actions a{border:1px solid color-mix(in srgb,currentColor 22%,transparent);border-radius:8px;padding:5px 9px}.sb-actions button:hover,.sb-actions a:hover{opacity:1}.sb-actions .sb-primary,.sb-dialog-actions .sb-primary{border:1px solid #587ff0;border-radius:8px;background:#587ff0;color:#fff;padding:6px 10px;opacity:1}.sb-actions .sb-primary:hover,.sb-dialog-actions .sb-primary:hover{background:#6a8df4}.sb-actions .sb-danger,.sb-dialog-actions .sb-danger{background:transparent;color:#ed8585}.sb-dialog-actions button{border:0;border-radius:8px;background:color-mix(in srgb,currentColor 7%,transparent);color:inherit;padding:7px 11px;cursor:pointer}
 .sb-muted{font-size:12px;opacity:.45}.sb-empty{grid-column:1/-1;align-self:center;text-align:center;opacity:.55;padding:48px}
-.sb-pager{flex:none;min-height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;border-top:1px solid color-mix(in srgb,currentColor 14%,transparent);padding-top:10px;font-size:12px}.sb-pager>div{display:flex;align-items:center;gap:10px}.sb-pager>label{justify-self:end}.sb-pager button{padding:6px 10px}.sb-pager button:disabled{opacity:.35;cursor:not-allowed}.sb-pager select{height:30px;padding:0 6px}
-.sb-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.58);padding:20px}.sb-dialog{width:min(420px,100%);border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:14px;background:#29292c;color:#f2f2f3;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}.sb-dialog h3{margin:0 0 12px}.sb-dialog p{font-size:13px;opacity:.75}.sb-dialog>code{display:block;border-radius:8px;background:rgba(255,255,255,.07);padding:10px;overflow-wrap:anywhere}.sb-dialog .sb-restart-note{color:#f5b82e}.sb-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.sb-dialog-actions button:disabled{opacity:.55;cursor:wait}
+.sb-pager{flex:none;min-height:44px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;border:0;padding-top:8px;font-size:12px}.sb-pager>div{display:flex;align-items:center;gap:12px}.sb-pager>label{justify-self:end}.sb-pager button{border:0;background:transparent;color:inherit;padding:6px 2px;opacity:.62;cursor:pointer}.sb-pager button:hover:not(:disabled){opacity:1}.sb-pager button:disabled{opacity:.25;cursor:not-allowed}.sb-pager select{height:30px;padding:0 8px}
+.sb-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(0,0,0,.58);padding:20px}.sb-dialog{width:min(420px,100%);border:0;border-radius:16px;background:#29292c;color:#f2f2f3;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}.sb-dialog h3{margin:0 0 12px}.sb-dialog p{font-size:13px;opacity:.75}.sb-dialog>code{display:block;border-radius:10px;background:rgba(255,255,255,.07);padding:10px;overflow-wrap:anywhere}.sb-dialog .sb-restart-note{color:#f5b82e}.sb-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.sb-dialog-actions button:disabled{opacity:.55;cursor:wait}
 @media(max-width:700px){.sb-market{height:calc(100vh - 170px)}.sb-head{align-items:stretch;flex-direction:column}.sb-profile{justify-content:space-between}.sb-toolbar{grid-template-columns:1fr}.sb-tabs{grid-column:1/-1}.sb-toolbar input{width:100%}.sb-results{grid-template-columns:1fr}.sb-card{min-height:196px}.sb-card footer{align-items:stretch;flex-direction:column}.sb-actions{justify-content:flex-end}.sb-pager{grid-template-columns:1fr auto}.sb-pager>span{display:none}.sb-pager>label{justify-self:end}}
 `;
 

@@ -1,10 +1,13 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { resolve } from 'node:path'
+import { isNpmPackageName } from './catalog.ts'
 
 export interface ProfileState {
   name: string
   dependencies: Record<string, string>
+  /** Exact versions read from installed package manifests. */
+  versions?: Record<string, string>
   /** App-owned packages that can be updated through a profile override. */
   bundledDependencies?: Record<string, string>
 }
@@ -43,10 +46,37 @@ async function dependencies(directory: string): Promise<Record<string, string>> 
   }
 }
 
+async function installedVersions(
+  directory: string,
+  packageNames: readonly string[],
+): Promise<Record<string, string>> {
+  const versions: Record<string, string> = {}
+  await Promise.all(packageNames.filter(isNpmPackageName).map(async (packageName) => {
+    try {
+      const value = JSON.parse(await readFile(
+        resolve(directory, 'node_modules', packageName, 'package.json'),
+        'utf8',
+      )) as { version?: unknown }
+      if (typeof value.version === 'string' && value.version.trim() !== '') {
+        versions[packageName] = value.version.trim()
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+  }))
+  return versions
+}
+
 /** Read one profile dependency snapshot from an authoritative directory. */
 export async function readProfileState(name: string, directory: string = profileDirectory(name)): Promise<ProfileState> {
   assertProfileName(name)
-  return { name, dependencies: await dependencies(directory) }
+  const declared = await dependencies(directory)
+  const versions = await installedVersions(directory, Object.keys(declared))
+  return {
+    name,
+    dependencies: declared,
+    ...(Object.keys(versions).length === 0 ? {} : { versions }),
+  }
 }
 
 /** List initialized profiles plus the two built-in names DSH can initialize. */

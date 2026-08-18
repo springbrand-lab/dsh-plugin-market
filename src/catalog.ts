@@ -176,3 +176,8 @@ export function formatStars(stars: number): string {
   const thousands = stars / 1_000
   return `${thousands < 100 ? Number(thousands.toFixed(1)) : Math.round(thousands)}k`
 }
+
+/** Whether npm latest differs from the exact installed package version. */
+export function hasUpdate(current: string | undefined, latest: string | undefined): boolean {
+  return current !== undefined && latest !== undefined && current !== latest
+}

@@ -62,7 +62,7 @@ dsh web
 
 - **浏览与搜索**：按名称、作者、描述或 npm 包名搜索，并显示插件分类、仓库头像和紧凑的 GitHub Star 数。
 - **Profile 管理**：普通 DSH 可以在 `web`、`headless` 或其他本地 Profile 间切换目标；SpringBrand Desktop 只允许操作当前激活的 Profile。
-- **一处完成安装、更新与卸载**：更新会立即解析最新发布版本；操作前显示目标 Profile 和 npm 包名，避免改错环境。
+- **一处完成安装、更新与卸载**：显示实际安装版本、可更新数量与状态，并可一键更新到最新发布版本。
 - **已安装视图**：同时展示目录插件和 Profile 中已有、但目录未收录的依赖。
 - **SpringBrand Desktop 中的市场自更新**：把最新版本安装到当前 Profile；移除该 Profile 覆盖后会回退到应用内置版本。
 - **明确的生效时机**：当前 Profile 变更后自动重启；其他 Profile 在下次启动时生效。

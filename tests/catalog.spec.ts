@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CATALOG_URL, formatStars, isNpmPackageName, parseCatalog } from '../src/catalog.ts'
+import { DEFAULT_CATALOG_URL, formatStars, hasUpdate, isNpmPackageName, parseCatalog } from '../src/catalog.ts'
 
 describe('plugin catalog', () => {
   it('uses the server-filtered default catalog', () => {
@@ -44,6 +44,12 @@ describe('plugin catalog', () => {
     expect(formatStars(999)).toBe('999')
     expect(formatStars(12_345)).toBe('12.3k')
     expect(formatStars(106_863)).toBe('107k')
+  })
+
+  it('reports an update only when both exact versions differ', () => {
+    expect(hasUpdate('1.0.0', '1.1.0')).toBe(true)
+    expect(hasUpdate('1.0.0', '1.0.0')).toBe(false)
+    expect(hasUpdate(undefined, '1.1.0')).toBe(false)
   })
 
   it('keeps bilingual catalog descriptions for the active UI locale', () => {

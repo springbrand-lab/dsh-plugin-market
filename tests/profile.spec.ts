@@ -72,6 +72,19 @@ describe('profile enumeration', () => {
     expect(rows.find(row => row.name === 'web')?.dependencies).toEqual({ '@scope/one': '1.0.0' })
     expect(rows.find(row => row.name === 'headless')?.dependencies).toEqual({ '@scope/two': '2.0.0' })
   })
+
+  it('reports the installed package version instead of its dependency range', async () => {
+    seed('web', { '@scope/one': '^1.0.0' })
+    const packageDir = join(home, 'profiles', 'web', 'node_modules', '@scope', 'one')
+    mkdirSync(packageDir, { recursive: true })
+    writeFileSync(join(packageDir, 'package.json'), JSON.stringify({ version: '1.2.3' }))
+
+    await expect(readProfileState('web')).resolves.toEqual({
+      name: 'web',
+      dependencies: { '@scope/one': '^1.0.0' },
+      versions: { '@scope/one': '1.2.3' },
+    })
+  })
 })
 
 describe('profile state', () => {

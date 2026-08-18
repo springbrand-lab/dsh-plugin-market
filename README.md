@@ -62,7 +62,7 @@ dsh web
 
 - **Browse and search** by name, author, description, or npm package, with visible plugin categories, repository avatars, and compact GitHub Star counts.
 - **Profile management** across `web`, `headless`, and other local profiles under ordinary DSH; SpringBrand Desktop limits operations to its active profile.
-- **Install, update, and remove in one place**, with updates resolving the latest published version immediately and the target profile and npm package shown before each operation.
+- **Install, update, and remove in one place**, with exact installed versions, visible update badges and counts, and one-click updates to the latest published version.
 - **Installed view** covering both catalog entries and profile dependencies that are not listed in the catalog.
 - **Marketplace self-updates in SpringBrand Desktop** by installing the latest release into the active profile; removing that profile override falls back to the version bundled with the app.
 - **Clear activation timing**: changes to the current profile restart DSH automatically; changes to other profiles apply on their next launch.
