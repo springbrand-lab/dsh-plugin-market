@@ -6,7 +6,7 @@ const REAL_ENTITY_TYPES = new Set([
   'cordis-plugin',
 ])
 
-export const DEFAULT_CATALOG_URL = 'https://dshplugin.market/catalog.json'
+export const DEFAULT_CATALOG_URL = 'https://dshplugin.market/api/catalog'
 
 export interface CatalogEntry {
   id: string

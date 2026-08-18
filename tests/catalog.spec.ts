@@ -3,7 +3,7 @@ import { DEFAULT_CATALOG_URL, formatStars, isNpmPackageName, parseCatalog } from
 
 describe('plugin catalog', () => {
   it('uses the server-filtered default catalog', () => {
-    expect(DEFAULT_CATALOG_URL).toBe('https://dshplugin.market/catalog.json')
+    expect(DEFAULT_CATALOG_URL).toBe('https://dshplugin.market/api/catalog')
   })
 
   it('keeps real DSH entities but only enables audited npm bundles', () => {
