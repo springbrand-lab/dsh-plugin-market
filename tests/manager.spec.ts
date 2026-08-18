@@ -65,4 +65,41 @@ describe('Desktop marketplace manager', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('retries removal when a young lockfile entry blocks pnpm verification', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dshmarket-release-age-'))
+    try {
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({
+        dependencies: { '@springbrand/example': '1.0.0' },
+      }))
+      const operation = (exitCode: number, error = '') => {
+        const stdout = new PassThrough()
+        const stderr = new PassThrough()
+        const done = Promise.resolve().then(() => {
+          stdout.end()
+          stderr.end(error)
+          return { exitCode, signal: null }
+        })
+        return { stdout, stderr, done }
+      }
+      const runPlugin = vi.fn()
+        .mockReturnValueOnce(operation(1, 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION'))
+        .mockReturnValueOnce(operation(0))
+      const manager = desktopManager(
+        { current: { name: 'desktop', dir }, restart: vi.fn(async () => {}) },
+        { run: vi.fn(), runPlugin } as unknown as DesktopPnpmLike,
+      )
+      const signal = AbortSignal.timeout(1_000)
+
+      await expect(manager.runPlugin('desktop', 'remove', '@springbrand/example', signal)).resolves.toBeUndefined()
+      expect(runPlugin).toHaveBeenNthCalledWith(1, ['remove', '@springbrand/example'], dir, signal)
+      expect(runPlugin).toHaveBeenNthCalledWith(2, [
+        'remove',
+        '--config.minimumReleaseAge=0',
+        '@springbrand/example',
+      ], dir, signal)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

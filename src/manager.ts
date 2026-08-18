@@ -1,6 +1,11 @@
 import { createRequire } from 'node:module'
 import type { Readable } from 'node:stream'
-import { pluginArguments, runPluginCommand, type PluginAction } from './command.ts'
+import {
+  pluginArguments,
+  runPluginCommand,
+  withReleaseAgeRecovery,
+  type PluginAction,
+} from './command.ts'
 import { listProfiles, readProfileState, type ProfileState } from './profile.ts'
 import { restartCurrentProcess } from './restart.ts'
 
@@ -63,31 +68,39 @@ export function desktopManager(
   pnpm: DesktopPnpmLike,
 ): MarketplaceManager {
   const current = profiles.current
+  const runPlugin = async (
+    profile: string,
+    action: PluginAction,
+    packageName: string,
+    signal: AbortSignal,
+  ): Promise<void> => {
+    if (profile !== current.name) {
+      throw new Error(`Desktop can only modify its active profile: ${current.name}`)
+    }
+    const selfPackage = packageName === MARKETPLACE_PACKAGE
+    const installed = selfPackage
+      && Object.hasOwn((await readProfileState(current.name, current.dir)).dependencies, packageName)
+    const args = selfPackage
+      ? selfArguments(action, packageName, installed)
+      : pluginArguments(action, packageName)
+    await withReleaseAgeRecovery(action, packageName, async (operationArgs) => {
+      const operation = selfPackage
+        ? pnpm.run(operationArgs, signal)
+        : pnpm.runPlugin(operationArgs, current.dir, signal)
+      const output = collectOutput([operation.stdout, operation.stderr])
+      const outcome = await operation.done
+      if (outcome.exitCode !== 0) {
+        throw new Error(output() || `package operation failed (${outcome.signal ?? String(outcome.exitCode)})`)
+      }
+    }, args)
+  }
   return {
     currentProfile: current.name,
     listProfiles: async () => [{
       ...await readProfileState(current.name, current.dir),
       bundledDependencies: { [MARKETPLACE_PACKAGE]: MARKETPLACE_VERSION },
     }],
-    runPlugin: async (profile, action, packageName, signal) => {
-      if (profile !== current.name) {
-        throw new Error(`Desktop can only modify its active profile: ${current.name}`)
-      }
-      const selfPackage = packageName === MARKETPLACE_PACKAGE
-      const installed = selfPackage
-        && Object.hasOwn((await readProfileState(current.name, current.dir)).dependencies, packageName)
-      const args = selfPackage
-        ? selfArguments(action, packageName, installed)
-        : pluginArguments(action, packageName)
-      const operation = selfPackage
-        ? pnpm.run(args, signal)
-        : pnpm.runPlugin(args, current.dir, signal)
-      const output = collectOutput([operation.stdout, operation.stderr])
-      const outcome = await operation.done
-      if (outcome.exitCode !== 0) {
-        throw new Error(output() || `package operation failed (${outcome.signal ?? String(outcome.exitCode)})`)
-      }
-    },
+    runPlugin,
     restart: () => profiles.restart(),
   }
 }
